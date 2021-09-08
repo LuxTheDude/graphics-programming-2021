@@ -179,12 +179,27 @@ void createArrayBuffer(const std::vector<float> &array, unsigned int &VBO){
 void setupShape(const unsigned int shaderProgram,unsigned int &VAO, unsigned int &vertexCount){
 
     unsigned int posVBO, colorVBO;
-    createArrayBuffer(std::vector<float>{
-            // position
-            0.0f,  0.0f, 0.0f,
-            0.5f,  0.0f, 0.0f,
-            0.5f,  0.5f, 0.0f
-    }, posVBO);
+
+    std::vector<float> triangles;
+    float step = (360.0f / 15.0f);
+    float radius = 0.5f;
+    float pi = 3.14159f;
+    for (int a = 0; a < 360; a += step)
+    {
+        triangles.push_back(0.0f);
+        triangles.push_back(0.0f);
+        triangles.push_back(0.0f);
+
+        triangles.push_back(radius * cos(a * pi / 180));
+        triangles.push_back(radius * sin(a * pi / 180));
+        triangles.push_back(0.0f);
+
+        triangles.push_back(radius * cos((a + step) * pi / 180));
+        triangles.push_back(radius * sin((a + step) * pi / 180));
+        triangles.push_back(0.0f);
+    }
+
+    createArrayBuffer(triangles, posVBO);
 
     createArrayBuffer( std::vector<float>{
             // color
@@ -194,7 +209,7 @@ void setupShape(const unsigned int shaderProgram,unsigned int &VAO, unsigned int
     }, colorVBO);
 
     // tell how many vertices to draw
-    vertexCount = 3;
+    vertexCount = triangles.size();
 
     // create a vertex array object (VAO) on OpenGL and save a handle to it
     glGenVertexArrays(1, &VAO);
