@@ -39,5 +39,5 @@
 *.app
 
 # My additions
-./.vs/*
-./out/*
+/.vs/*
+/out/*
