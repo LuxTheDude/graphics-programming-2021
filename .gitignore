@@ -37,3 +37,7 @@
 *.exe
 *.out
 *.app
+
+# My additions
+./.vs/*
+./out/*
