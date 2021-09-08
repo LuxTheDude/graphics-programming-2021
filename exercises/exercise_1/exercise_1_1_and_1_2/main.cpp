@@ -9,22 +9,47 @@ const char* vertexShaderSource = "#version 330 core\n"
 "   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
 "}\0";
 
-const char* fragmentShaderSource = "#version 330 core\n"
+const char* fragmentShaderSourceOrange = "#version 330 core\n"
 "out vec4 FragColor;\n"
 "void main()\n"
 "{\n"
 "	FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n"
 "}\0";
 
+const char* fragmentShaderSourceYellow = "#version 330 core\n"
+"out vec4 FragColor;\n"
+"void main()\n"
+"{\n"
+"	FragColor = vec4(1.0f, 1.0f, 0f, 1.0f);\n"
+"}\0";
 
-unsigned int VAO;
-unsigned int VBO;
 
-float vertices[] =
+unsigned int VAOs[2];
+unsigned int VBOs[2];
+unsigned int EBO;
+
+/*float vertices[] =
 {
-	-0.5f, -0.5f, 0.0f,
-	 0.5f, -0.5f, 0.0f,
-	 0.0f,  0.5f, 0.0f
+	 0.5f,  0.5f, 0.0f, // top right
+	 0.5f, -0.5f, 0.0f, // bottom right
+	-0.5f, -0.5f, 0.0f, // bottom left
+	-0.5f,  0.5f, 0.0f // top left
+};*/
+
+float vertices[] = {
+	// first triangle
+	-0.9f, -0.5f, 0.0f,  // left 
+	-0.0f, -0.5f, 0.0f,  // right
+	-0.45f, 0.5f, 0.0f,  // top 
+	// second triangle
+	 0.0f, -0.5f, 0.0f,  // left
+	 0.9f, -0.5f, 0.0f,  // right
+	 0.45f, 0.5f, 0.0f   // top 
+};
+
+unsigned int indices[] = {
+	0, 1, 3,
+	1, 2, 3
 };
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
@@ -117,28 +142,49 @@ int main()
 	glViewport(0, 0, 800, 600);
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
-	//Generate objects
-	glGenVertexArrays(1, &VAO);
-	glGenBuffers(1, &VBO);
-	
-	//Binding VAO - Will record the next stuff i do with VBO and EBO
-	glBindVertexArray(VAO);
-
-	//Create VBO and attach our vertices data to it
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
 	//Load and compile the shaders and link them in a program
 	unsigned int vertexShader = createAndCompileShader(GL_VERTEX_SHADER, vertexShaderSource);
-	unsigned int fragmentShader = createAndCompileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
-	unsigned int shaders[] = { vertexShader, fragmentShader };
-	unsigned int shaderProgram = createAndLinkShaderProgram(shaders, 2);
+	unsigned int fragmentShaderOrange = createAndCompileShader(GL_FRAGMENT_SHADER, fragmentShaderSourceOrange);
+	unsigned int fragmentShaderYellow = createAndCompileShader(GL_FRAGMENT_SHADER, fragmentShaderSourceYellow);
+	unsigned int shaderPrograms[2];
+	unsigned int shaders1[] = { vertexShader, fragmentShaderOrange };
+	shaderPrograms[0] = createAndLinkShaderProgram(shaders1, 2);
+	unsigned int shaders2[] = { vertexShader, fragmentShaderYellow };
+	shaderPrograms[1] = createAndLinkShaderProgram(shaders2, 2);
 
-	//Set the program just created, and clean up shaders
-	glUseProgram(shaderProgram);
+
+	//clean up shaders
 	glDeleteShader(vertexShader);
-	glDeleteShader(fragmentShader);
+	glDeleteShader(fragmentShaderOrange);
+	glDeleteShader(fragmentShaderYellow);
+
+	//Generate objects
+	glGenVertexArrays(2, VAOs);
+	glGenBuffers(2, VBOs);
+	glGenBuffers(1, &EBO);
 	
+	//Binding VAO - Will record the next stuff i do with VBO and EBO
+	glBindVertexArray(VAOs[0]);
+
+	//Create VBO and attach our vertices data to it
+	glBindBuffer(GL_ARRAY_BUFFER, VBOs[0]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+	//Inform OpenGL how to interpret out vertices
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+
+	//Create EBO and attach our indices to it
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+	//Binding VAO - Will record the next stuff i do with VBO and EBO
+	glBindVertexArray(VAOs[1]);
+
+	//Create VBO and attach our vertices data to it
+	glBindBuffer(GL_ARRAY_BUFFER, VBOs[1]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
 	//Inform OpenGL how to interpret out vertices
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
@@ -153,15 +199,27 @@ int main()
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
+		glUseProgram(shaderPrograms[0]);
+
 		//Bind our VAO that we've set up, draw triangle, then unbind
-		glBindVertexArray(VAO);
+		glBindVertexArray(VAOs[0]);
 		glDrawArrays(GL_TRIANGLES, 0, 3);
+		//glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+		glBindVertexArray(VAOs[1]);
+		glUseProgram(shaderPrograms[1]);
+		glDrawArrays(GL_TRIANGLES, 3, 3);
 		glBindVertexArray(0);
 		
 		//Show our drawn buffer on window, and listen for events
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
+	glDeleteVertexArrays(2, VAOs);
+	glDeleteBuffers(2, VBOs);
+	glDeleteBuffers(1, &EBO);
+	glDeleteProgram(shaderPrograms[0]);
+	glDeleteProgram(shaderPrograms[1]);
+
 
 	glfwTerminate();
 	return 0;
