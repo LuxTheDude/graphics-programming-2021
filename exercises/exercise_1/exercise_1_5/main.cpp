@@ -9,8 +9,9 @@
 // function declarations
 // ---------------------
 void createArrayBuffer(const std::vector<float> &array, unsigned int &VBO);
-void setupShape(unsigned int shaderProgram, unsigned int &VAO, unsigned int &vertexCount);
-void draw(unsigned int shaderProgram, unsigned int VAO, unsigned int vertexCount);
+std::pair<unsigned int, unsigned int> setupShape(unsigned int shaderProgram, unsigned int &VAO, unsigned int &vertexCount);
+void draw(unsigned int shaderProgram, unsigned int VAO, unsigned int vertexCount, unsigned int posVBO);
+void updateVBO(unsigned int VBO, float angle);
 
 
 // glfw functions
@@ -132,8 +133,10 @@ int main()
     unsigned int VAO, vertexCount;
     // generate geometry in a vertex array object (VAO), record the number of vertices in the mesh,
     // tells the shader how to read it
-    setupShape(shaderProgram, VAO, vertexCount);
-
+    std::pair<unsigned int, unsigned int> ids = setupShape(shaderProgram, VAO, vertexCount);
+    unsigned int posVBO = ids.first;
+    unsigned int colVBO = ids.second;
+    
 
     // render loop
     // -----------
@@ -146,8 +149,8 @@ int main()
         // ------
         glClearColor(.2f, .2f, .2f, 1.0f); // background
         glClear(GL_COLOR_BUFFER_BIT); // clear the framebuffer
-
-        draw(shaderProgram, VAO, vertexCount);
+        draw(shaderProgram, VAO, vertexCount, posVBO);
+        updateVBO(posVBO, 1);
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
@@ -159,6 +162,30 @@ int main()
     // ------------------------------------------------------------------
     glfwTerminate();
     return 0;
+}
+
+void updateVBO(unsigned int VBO, float angle)
+{
+    float pi = 3.14159;
+    float angleR = angle * pi / 180.0f;
+    std::vector<float> array(18, 0);
+    // bind the VBO
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+
+    //Get the current data
+    glGetBufferSubData(GL_ARRAY_BUFFER, 0, 18 * sizeof(GLfloat), &array[0]);
+
+    //rotate it
+    for (int i = 0; i < array.size(); i += 3)
+    {
+        array[i] = cos(angleR) * array[i] - sin(angleR) * array[i + 1];
+        array[i + 1] = sin(angleR) * array[i] + cos(angleR) * array[i + 1];
+    }
+
+    //x = cos(angle) * x - sin(angle) * y y = cos(angle) * x + sin(angle) * y
+
+    // Set it again
+    glBufferSubData(GL_ARRAY_BUFFER, 0, array.size() * sizeof(GLfloat), &array[0]);
 }
 
 
@@ -176,25 +203,31 @@ void createArrayBuffer(const std::vector<float> &array, unsigned int &VBO){
 
 // create the geometry, a vertex array object representing it, and set how a shader program should read it
 // -------------------------------------------------------------------------------------------------------
-void setupShape(const unsigned int shaderProgram,unsigned int &VAO, unsigned int &vertexCount){
+std::pair<unsigned int, unsigned int> setupShape(const unsigned int shaderProgram,unsigned int &VAO, unsigned int &vertexCount){
 
     unsigned int posVBO, colorVBO;
     createArrayBuffer(std::vector<float>{
             // position
-            0.0f,  0.0f, 0.0f,
-            0.5f,  0.0f, 0.0f,
-            0.5f,  0.5f, 0.0f
+            -0.25f, -0.25f, 0.0f, // Bottom left
+             0.25f, -0.25f, 0.0f, // bottom right
+             0.25f,  0.25f, 0.0f, // top right
+            -0.25f, -0.25f, 0.0f, // Bottom left
+             0.25f,  0.25f, 0.0f, // top right
+            -0.25f,  0.25f, 0.0f, // top left
     }, posVBO);
 
     createArrayBuffer( std::vector<float>{
             // color
-            1.0f,  0.0f, 0.0f,
-            1.0f,  0.0f, 0.0f,
-            1.0f,  0.0f, 0.0f
+            1.0f, 1.0f, 1.0f,
+            1.0f, 1.0f, 1.0f,
+            1.0f, 1.0f, 1.0f,
+            1.0f, 1.0f, 1.0f,
+            1.0f, 1.0f, 1.0f,
+            1.0f, 1.0f, 1.0f
     }, colorVBO);
 
     // tell how many vertices to draw
-    vertexCount = 3;
+    vertexCount = 6;
 
     // create a vertex array object (VAO) on OpenGL and save a handle to it
     glGenVertexArrays(1, &VAO);
@@ -219,13 +252,13 @@ void setupShape(const unsigned int shaderProgram,unsigned int &VAO, unsigned int
 
     glEnableVertexAttribArray(colorAttributeLocation);
     glVertexAttribPointer(colorAttributeLocation, colorSize, GL_FLOAT, GL_FALSE, 0, 0);
-
+    return std::make_pair(posVBO, colorVBO);
 }
 
 
 // tell opengl to draw a vertex array object (VAO) using a give shaderProgram
 // --------------------------------------------------------------------------
-void draw(const unsigned int shaderProgram, const unsigned int VAO, const unsigned int vertexCount){
+void draw(const unsigned int shaderProgram, const unsigned int VAO, const unsigned int vertexCount, unsigned int posVBO){
     // set active shader program
     glUseProgram(shaderProgram);
     // bind vertex array object
