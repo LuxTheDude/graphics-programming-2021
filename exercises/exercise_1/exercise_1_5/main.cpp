@@ -182,8 +182,6 @@ void updateVBO(unsigned int VBO, float angle)
         array[i + 1] = sin(angleR) * array[i] + cos(angleR) * array[i + 1];
     }
 
-    //x = cos(angle) * x - sin(angle) * y y = cos(angle) * x + sin(angle) * y
-
     // Set it again
     glBufferSubData(GL_ARRAY_BUFFER, 0, array.size() * sizeof(GLfloat), &array[0]);
 }
