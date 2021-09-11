@@ -149,8 +149,10 @@ int main()
         // ------
         glClearColor(.2f, .2f, .2f, 1.0f); // background
         glClear(GL_COLOR_BUFFER_BIT); // clear the framebuffer
-        draw(shaderProgram, VAO, vertexCount, posVBO);
+
         updateVBO(posVBO, 1);
+
+        draw(shaderProgram, VAO, vertexCount, posVBO);
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
@@ -166,8 +168,9 @@ int main()
 
 void updateVBO(unsigned int VBO, float angle)
 {
-    float pi = 3.14159;
+    float pi = 3.14159265358979323846;
     float angleR = angle * pi / 180.0f;
+    std::cout << angleR << std::endl;
     std::vector<float> array(18, 0);
     // bind the VBO
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
@@ -178,8 +181,10 @@ void updateVBO(unsigned int VBO, float angle)
     //rotate it
     for (int i = 0; i < array.size(); i += 3)
     {
-        array[i] = cos(angleR) * array[i] - sin(angleR) * array[i + 1];
-        array[i + 1] = sin(angleR) * array[i] + cos(angleR) * array[i + 1];
+        float newX = cos(angleR) * array[i] - sin(angleR) * array[i + 1];
+        float newY = sin(angleR) * array[i] + cos(angleR) * array[i + 1];
+        array[i] = newX;
+        array[i + 1] = newY;
     }
 
     // Set it again

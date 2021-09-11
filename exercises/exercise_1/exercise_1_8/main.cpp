@@ -134,7 +134,6 @@ int main()
     // tells the shader how to read it
     setupShape(shaderProgram, VAO, vertexCount);
 
-
     // render loop
     // -----------
     while (!glfwWindowShouldClose(window)) {
