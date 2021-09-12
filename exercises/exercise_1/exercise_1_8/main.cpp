@@ -9,14 +9,15 @@
 // function declarations
 // ---------------------
 void createArrayBuffer(const std::vector<float>& array, unsigned int& VBO);
-void setupShape(unsigned int shaderProgram, unsigned int& VAO, unsigned int& vertexCount);
+unsigned int setupShape(unsigned int shaderProgram, unsigned int& VAO);
 void draw(unsigned int shaderProgram, unsigned int VAO, unsigned int vertexCount);
+void addPoint(unsigned int VBO, unsigned int& vertexCount, float data[]);
 
 
 // glfw functions
 // --------------
 void framebufferSizeCallback(GLFWwindow* window, int width, int height);
-void processInput(GLFWwindow* window);
+void processInput(GLFWwindow* window, unsigned int VBO, unsigned int& vertexCount);
 
 
 // settings
@@ -41,7 +42,7 @@ const char* fragmentShaderSource = "#version 330 core\n"
 "in  vec3 vtxColor;\n"
 "void main()\n"
 "{\n"
-"   FragColor = vec4(vtxColor, 1.0);\n"
+"   FragColor = vec4(1.0, 1.0, 1.0, 1.0);\n"
 "}\n\0";
 
 
@@ -129,17 +130,19 @@ int main()
 
     // setup vertex array object (VAO)
     // -------------------------------
-    unsigned int VAO, vertexCount;
+    unsigned int VAO;
     // generate geometry in a vertex array object (VAO), record the number of vertices in the mesh,
     // tells the shader how to read it
-    setupShape(shaderProgram, VAO, vertexCount);
+    unsigned int VBO = setupShape(shaderProgram, VAO);
+    unsigned int vertexCount = 0;
+    glPointSize(4.0f);
 
     // render loop
     // -----------
     while (!glfwWindowShouldClose(window)) {
         // input
         // -----
-        processInput(window);
+        processInput(window, VBO, vertexCount);
 
         // render
         // ------
@@ -160,77 +163,35 @@ int main()
     return 0;
 }
 
+void addPoint(unsigned int VBO, unsigned int& vertexCount, float data[])
+{
+    vertexCount++;
+    std::cout << vertexCount << std::endl;
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferSubData(GL_ARRAY_BUFFER, vertexCount * 3 * sizeof(float), 3 * sizeof(float), data);
+}
+
 
 // create a vertex buffer object (VBO) from an array of values, return VBO handle (set as reference)
 // -------------------------------------------------------------------------------------------------
-void createArrayBuffer(const std::vector<float>& array, unsigned int& VBO) {
+void createArrayBuffer(unsigned int& VBO) {
     // create the VBO on OpenGL and get a handle to it
     glGenBuffers(1, &VBO);
     // bind the VBO
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     // set the content of the VBO (type, size, pointer to start, and how it is used)
-    glBufferData(GL_ARRAY_BUFFER, array.size() * sizeof(GLfloat), &array[0], GL_STATIC_DRAW);
-}
-
-void createElementArrayBuffer(const std::vector<unsigned int>& array, unsigned int& EBO) {
-    // create the VBO on OpenGL and get a handle to it
-    glGenBuffers(1, &EBO);
-    // bind the VBO
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    // set the content of the VBO (type, size, pointer to start, and how it is used)
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, array.size() * sizeof(GLuint), &array[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, 3 * sizeof(float)*2000, 0, GL_STATIC_DRAW);
 }
 
 
 // create the geometry, a vertex array object representing it, and set how a shader program should read it
 // -------------------------------------------------------------------------------------------------------
-void setupShape(const unsigned int shaderProgram, unsigned int& VAO, unsigned int& vertexCount) {
+unsigned int setupShape(const unsigned int shaderProgram, unsigned int& VAO) {
 
-    unsigned int VBO, EBO;
+    unsigned int VBO;
 
-    std::vector<float> data;
-    data.push_back(0.0f);
-    data.push_back(0.0f);
-    data.push_back(0.0f);
+    createArrayBuffer(VBO);
 
-    data.push_back(1.0f);
-    data.push_back(0.0f);
-    data.push_back(0.0f);
-
-    float step = (360.0f / 15.0f);
-    float radius = 0.5f;
-    float pi = 3.14159f;
-    for (int a = 0; a < 360; a += step)
-    {
-        data.push_back(radius * cos(a * pi / 180));
-        data.push_back(radius * sin(a * pi / 180));
-        data.push_back(0.0f);
-
-        data.push_back(0.0f);
-        data.push_back(1.0f);
-        data.push_back(0.0f);
-    }
-
-    std::vector<unsigned int> indices;
-    for (int i = 1; i <= 14; i += 1)
-    {
-        indices.push_back(0);
-        indices.push_back(i);
-        indices.push_back((i+1));
-    }
-
-    indices.push_back(0);
-    indices.push_back(15);
-    indices.push_back(1);
-
-
-    createArrayBuffer(data, VBO);
-    createElementArrayBuffer(indices, EBO);
-
-    // tell how many vertices to draw
-    vertexCount = data.size() / 2;
-
-    // create a vertex array object (VAO) on OpenGL and save a handle to it
     glGenVertexArrays(1, &VAO);
 
     // bind vertex array object
@@ -243,15 +204,8 @@ void setupShape(const unsigned int shaderProgram, unsigned int& VAO, unsigned in
     int posAttributeLocation = glGetAttribLocation(shaderProgram, "aPos");
 
     glEnableVertexAttribArray(posAttributeLocation);
-    glVertexAttribPointer(posAttributeLocation, posSize, GL_FLOAT, GL_FALSE, 6 * sizeof(float), 0);
-
-    int colorSize = 3;
-    int colorAttributeLocation = glGetAttribLocation(shaderProgram, "aColor");
-
-    glEnableVertexAttribArray(colorAttributeLocation);
-    glVertexAttribPointer(colorAttributeLocation, colorSize, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glVertexAttribPointer(posAttributeLocation, posSize, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
+    return VBO;
 
 }
 
@@ -264,17 +218,23 @@ void draw(const unsigned int shaderProgram, const unsigned int VAO, const unsign
     // bind vertex array object
     glBindVertexArray(VAO);
     // draw geometry
-    //glDrawArrays(GL_TRIANGLES, 0, vertexCount);
-    glDrawElements(GL_TRIANGLES, vertexCount, GL_UNSIGNED_INT, 0);
+    glDrawArrays(GL_POINTS, 0, vertexCount);
 }
 
 
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
 // ---------------------------------------------------------------------------------------------------------
-void processInput(GLFWwindow* window)
+void processInput(GLFWwindow* window, unsigned int VBO, unsigned int& vertexCount)
 {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
+    if (glfwGetMouseButton(window, 0) == GLFW_PRESS)
+    {
+        double x, y;
+        glfwGetCursorPos(window, &x, &y);
+        float vertex[] = { x / SCR_WIDTH * 2 - 1, (y / SCR_HEIGHT * 2 - 1) * -1, 0 };
+        addPoint(VBO, vertexCount, vertex);
+    }
 }
 
 
