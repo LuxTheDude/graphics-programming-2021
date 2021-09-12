@@ -34,6 +34,7 @@ Shader* activeShader;
 
 int main()
 {
+    srand(time(0)); //Init random number generation
     // glfw: initialize and configure
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -93,6 +94,13 @@ int main()
         // Iterate through the scene objects, for each object:
         // - bind the VAO; set the uniform variables; and draw.
         // CODE HERE
+        for (const SceneObject &so : sceneObjects)
+        {
+            glBindVertexArray(so.VAO);
+            activeShader->setVec2("offset", glm::vec2(so.x, so.y));
+            activeShader->setVec3("color", glm::vec3(so.r, so.g, so.b));
+            glDrawElements(GL_TRIANGLES, so.vertexCount, GL_UNSIGNED_INT, 0);
+        }
 
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
@@ -107,7 +115,7 @@ int main()
 
 
 // creates a cone triangle mesh, uploads it to openGL and returns the VAO associated to the mesh
-SceneObject instantiateCone(float r, float g, float b, float offsetX, float offsetY){
+SceneObject instantiateCone(float r, float g, float b, float offsetX, float offsetY) {
     // TODO voronoi 1.1
     // (exercises 1.7 and 1.8 can help you with implementing this function)
 
@@ -116,18 +124,62 @@ SceneObject instantiateCone(float r, float g, float b, float offsetX, float offs
 
     // you will need to store offsetX, offsetY, r, g and b in the object.
     // CODE HERE
+    sceneObject.x = offsetX;
+    sceneObject.y = offsetY;
+    sceneObject.r = r;
+    sceneObject.g = g;
+    sceneObject.b = b;
     // Build the geometry into an std::vector<float> or float array.
     // CODE HERE
+    std::vector<float> data{ 0.0f, 0.0f, 1.0f };
+    float segments = 30.0f;
+    float step = (360.0f / segments);
+    float radius = 3.0f;
+    float pi = 3.14159f;
+    for (int a = 0; a < 360; a += step)
+    {
+        data.push_back(radius * cos(a * pi / 180));
+        data.push_back(radius * sin(a * pi / 180));
+        data.push_back(0.0f);
+    }
+
+    std::vector<unsigned int> indices;
+    for (int i = 1; i <= segments-1; i += 1)
+    {
+        indices.push_back(0);
+        indices.push_back(i);
+        indices.push_back((i + 1));
+    }
+
+    indices.push_back(0);
+    indices.push_back(segments);
+    indices.push_back(1);
     // Store the number of vertices in the mesh in the scene object.
     // CODE HERE
+    sceneObject.vertexCount = data.size();
     // Declare and generate a VAO and VBO (and an EBO if you decide the work with indices).
     // CODE HERE
+    unsigned int VAO, VBO, EBO;
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glGenBuffers(1, &EBO);
     // Bind and set the VAO and VBO (and optionally a EBO) in the correct order.
     // CODE HERE
+    glBindVertexArray(VAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, data.size() * sizeof(GLfloat), &data[0], GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLuint), &indices[0], GL_STATIC_DRAW);
+
     // Set the position attribute pointers in the shader.
     // CODE HERE
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
     // Store the VAO handle in the scene object.
     // CODE HERE
+    sceneObject.VAO = VAO;
 
     // 'return' the scene object for the cone instance you just created.
     return sceneObject;
@@ -147,6 +199,18 @@ void button_input_callback(GLFWwindow* window, int button, int action, int mods)
     //   to obtain the offset values that describe the position of the object in the screen plane.
     // - A random value in the range [0, 1] should be used for the r, g and b variables.
     // CODE HERE
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
+    {
+        float max_rand = (float)(RAND_MAX);
+        double x, y;
+        int screenX, screenY;
+        glfwGetCursorPos(window, &x, &y);
+        glfwGetWindowSize(window, &screenX, &screenY);
+        float ndcX = (float)x / (float)screenX * 2.0f - 1.0f;
+        float ndcY = ((float)y / (float)screenY * 2.0f - 1.0f) * -1.0f;
+        SceneObject so = instantiateCone(rand() / max_rand, rand() / max_rand, rand() / max_rand, ndcX, ndcY);
+        sceneObjects.push_back(so);
+    }
 }
 
 // glfw: called whenever a keyboard key is pressed
@@ -158,6 +222,22 @@ void key_input_callback(GLFWwindow* window, int button, int other,int action, in
     // Key 1 sets the activeShader to &shaderPrograms[0];
     //   and so on.
     // CODE HERE
+    if (action != GLFW_PRESS)
+        return;
+    switch (button)
+    {
+	case GLFW_KEY_KP_1:
+        activeShader = &shaderPrograms[0];
+        break;
+    case GLFW_KEY_KP_2:
+        activeShader = &shaderPrograms[1];
+        break;
+    case GLFW_KEY_KP_3:
+        activeShader = &shaderPrograms[2];
+        break;
+    default:
+        break;
+    }
 }
 
 

@@ -6,10 +6,11 @@
 out vec4 fragColor;
 // Create a 'uniform vec3' to receive the cone color from your application.
 // CODE HERE
+uniform vec3 color;
 
 void main()
 {
     // set the fragColor using the 'uniform vec3' color that you set for the current object
     // notice that fragColor is a vec4, the last value is used to set opacity and should be set to 1
-    fragColor = vec4(1.0, 1.0, 1.0, 1.0); // CODE HERE
+    fragColor = vec4(color, 1.0); // CODE HERE
 }
