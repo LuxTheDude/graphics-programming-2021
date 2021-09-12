@@ -25,7 +25,7 @@ unsigned int VAO, VBO;                          // vertex array and buffer objec
 const unsigned int vertexBufferSize = 65536;    // # of particles
 
 // TODO 2.2 update the number of attributes in a particle
-const unsigned int particleSize = 2;            // particle attributes
+const unsigned int particleSize = 5;            // particle attributes
 
 const unsigned int sizeOfFloat = 4;             // bytes in a float
 unsigned int particleId = 0;                    // keep track of last particle to be updated
@@ -74,8 +74,8 @@ int main()
     glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
 
     // TODO 2.4 enable alpha blending (for transparency)
-
-
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_DST_ALPHA);
 
     createVertexBufferObject();
 
@@ -103,7 +103,7 @@ int main()
         shaderProgram->use();
 
         // TODO 2.3 set uniform variable related to current time
-
+        shaderProgram->setFloat("currentTime", glfwGetTime());
 
 
         // render particles
@@ -135,12 +135,22 @@ int main()
 
 void bindAttributes(){
     int posSize = 2; // each position has x,y
+    int velocitySize = 2;
+    int timeOfBirthSize = 1;
+
     GLuint vertexLocation = glGetAttribLocation(shaderProgram->ID, "pos");
     glEnableVertexAttribArray(vertexLocation);
     glVertexAttribPointer(vertexLocation, posSize, GL_FLOAT, GL_FALSE, particleSize * sizeOfFloat, 0);
 
     // TODO 2.2 set velocity and timeOfBirth shader attributes
+    GLuint velocityLocation = glGetAttribLocation(shaderProgram->ID, "velocity");
+    glEnableVertexAttribArray(velocityLocation);
+    glVertexAttribPointer(velocityLocation, velocitySize, GL_FLOAT, GL_FALSE, particleSize * sizeOfFloat, (void*)(posSize * sizeOfFloat));
 
+
+    GLuint timeOfBirthLocation = glGetAttribLocation(shaderProgram->ID, "timeOfBirth");
+    glEnableVertexAttribArray(timeOfBirthLocation);
+    glVertexAttribPointer(timeOfBirthLocation, timeOfBirthSize, GL_FLOAT, GL_FALSE, particleSize * sizeOfFloat, (void*)((posSize + velocitySize) * sizeOfFloat));
 
 
 }
@@ -168,6 +178,9 @@ void emitParticle(float x, float y, float velocityX, float velocityY, float time
     float data[particleSize];
     data[0] = x;
     data[1] = y;
+    data[2] = velocityX;
+	data[3] = velocityY;
+	data[4] = timeOfBirth;
 
     // TODO 2.2 , add velocity and timeOfBirth to the particle data
 
