@@ -35,8 +35,8 @@ void processInput(GLFWwindow *window);
 
 // settings
 // --------
-const unsigned int SCR_WIDTH = 600;
-const unsigned int SCR_HEIGHT = 600;
+const unsigned int SCR_WIDTH = 1200;
+const unsigned int SCR_HEIGHT = 1200;
 
 // plane parts
 // -----------
@@ -47,10 +47,11 @@ SceneObject planePropeller;
 float currentTime;
 Shader* shaderProgram;
 
-float planeHeading = 0.0f;
+float planeRotation = 0.0f;
 float tiltAngle = 0.0f;
-float planeSpeed = 0.005f;
+float planeSpeed = 0.01f;
 glm::vec2 planePosition = glm::vec2(0.0,0.0);
+
 
 
 int main()
@@ -155,11 +156,43 @@ void drawPlane(){
     // TODO 3.all create and apply your transformation matrices here
     //  you will need to transform the pose of the pieces of the plane by manipulating glm matrices and uploading a
     //  uniform mat4 model matrix to the vertex shader
+    glm::mat4 model = glm::mat4(1.0f);
 
+    float radianRot = glm::radians(planeRotation);
+    float radianTilt = glm::radians(tiltAngle);
+    glm::vec2 forward = glm::normalize(glm::vec2(-(glm::sin(radianRot)), glm::cos(radianRot)));
+
+    model = glm::translate(model, glm::vec3(planePosition, 0.0f));
+    model = glm::rotate(model, radianRot, glm::vec3(0.0f, 0.0f, 1.0f));
+    model = glm::rotate(model, tiltAngle, glm::vec3(0.0f, 1.0f, 0.0f));
+    model = glm::scale(model, glm::vec3(0.1));
+    shaderProgram->setMat4("model", model);
+
+    planePosition += forward * planeSpeed;
     // body
     drawSceneObject(planeBody);
     // right wing
     drawSceneObject(planeWing);
+    // left wing
+    glm::mat4 mirror = glm::scale(model, glm::vec3(-1.0f, 1.0f, 1.0f));
+    shaderProgram->setMat4("model", mirror);
+    drawSceneObject(planeWing);
+    // right tail
+    glm::mat4 tail = glm::translate(model, glm::vec3(0, -0.5f, 0.0f));
+    tail = glm::scale(tail, glm::vec3(0.5f));
+    shaderProgram->setMat4("model", tail);
+    drawSceneObject(planeWing);
+    //left tail
+    tail = glm::scale(tail, glm::vec3(-1.0f, 1.0f, 1.0f));;
+    shaderProgram->setMat4("model", tail);
+    drawSceneObject(planeWing);
+    //propeller
+    glm::mat4 propeller = glm::translate(model, glm::vec3(0.0f, 0.58f, 0.0f));
+    propeller = glm::rotate(propeller, (float)glfwGetTime()*6, glm::vec3(0.0f, 1.0f, 0.0f));
+    propeller = glm::rotate(propeller, glm::radians(270.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    propeller = glm::scale(propeller, glm::vec3(0.5f));
+    shaderProgram->setMat4("model", propeller);
+    drawSceneObject(planePropeller);
 
 }
 
@@ -183,6 +216,12 @@ void setup(){
                                       airplane.planeWingColors,
                                       airplane.planeWingIndices);
     planeWing.vertexCount = airplane.planeWingIndices.size();
+
+    // initialize plane propeller mesh objects
+    planePropeller.VAO = createVertexArray(airplane.planePropellerVertices,
+                                           airplane.planePropellerColors,
+                                           airplane.planePropellerIndices);
+    planePropeller.vertexCount = airplane.planePropellerIndices.size();
 
 }
 
@@ -241,6 +280,20 @@ void processInput(GLFWwindow *window)
     // you will need to read A and D key press inputs
     // if GLFW_KEY_A is GLFW_PRESS, plane turn left
     // if GLFW_KEY_D is GLFW_PRESS, plane turn right
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+    {
+        planeRotation += 4.0f;
+        tiltAngle = -45.0f;
+    }
+    else if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+    {
+        planeRotation -= 4.0f;
+        tiltAngle = 45.0f;
+    }
+    else
+    {
+        tiltAngle = 0.0f;
+    }
 
 }
 
