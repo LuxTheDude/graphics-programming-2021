@@ -65,7 +65,12 @@ float currentTime;
 glm::vec2 clickStart(0.0f), clickEnd(0.0f);
 
 // TODO 4.1 and 4.2 - global variables you might need
+glm::vec3 planePos;
+bool lMouseHeld = false;
+bool flyTowardsTarget = false;
 
+SceneObject arrowBody;
+SceneObject arrowHead;
 
 
 int main()
@@ -165,14 +170,47 @@ int main()
 
 void drawArrow(){
     // TODO - 4.2 implement the draw arrow
+    if (!lMouseHeld)
+        return;
 
+    glm::mat4 translation = glm::translate(planePos);
+
+    glm::vec2 dir = clickEnd - clickStart;
+    glm::vec3 y = glm::normalize(glm::vec3(dir.x, dir.y, 0));
+    glm::vec3 z(0, 0, 1);
+    glm::vec3 x = glm::normalize(glm::cross(y, z));
+    glm::vec4 w(0, 0, 0, 1);
+    glm::mat4 rotation = glm::mat4(glm::vec4(x, 0), glm::vec4(y, 0), glm::vec4(z, 0), w);
+
+    float length = glm::length(dir);
+    glm::mat4 scale = glm::scale(.1f, length, 1.0f);
+
+    glm::mat4 model = translation * rotation * scale;
+
+    shaderProgram->setMat4("model", model);
+    arrowHead.drawSceneObject();
 }
 
 void drawPlane(){
     // TODO - 4.1 translate and rotate the plane
+    glm::vec3 targetPos = glm::vec3(clickEnd, 0);
+    if (flyTowardsTarget && planePos != targetPos)
+    {
+        planePos += (targetPos - planePos) * 0.01f;
+    }
 
     glm::mat4 rotation(1.0f);
     glm::mat4 translation(1.0f);
+    translation = glm::translate(translation, planePos);
+    if ((lMouseHeld || flyTowardsTarget) && planePos != targetPos)
+    {
+        glm::vec3 dir = glm::vec3(targetPos - planePos);
+        glm::vec3 y = glm::normalize(glm::vec3(dir.x, dir.y, 0));
+        glm::vec3 z(0, 0, 1);
+        glm::vec3 x = glm::normalize(glm::cross(y, z));
+        glm::vec4 w(0, 0, 0, 1);
+        rotation = glm::mat4(glm::vec4(x,0), glm::vec4(y, 0), glm::vec4(z, 0), w);
+    }
 
     // scale matrix to make the plane 10 times smaller
     glm::mat4 scale = glm::scale(.1f, .1f, .1f);
@@ -219,7 +257,7 @@ void drawPlane(){
 
 void setup(){
     // initialize shaders
-    shaderProgram = new Shader("shader.vert", "shader.frag");
+    shaderProgram = new Shader("shaders/shader.vert", "shaders/shader.frag");
 
     PlaneModel& airplane = PlaneModel::getInstance();
     // initialize plane body mesh objects
@@ -241,7 +279,13 @@ void setup(){
     planePropeller.vertexCount = airplane.planePropellerIndices.size();
 
     // TODO 4.2 - load the arrow mesh
+    Primitives& primitives = Primitives::getInstance();
 
+    arrowBody.VAO = createVertexArray(primitives.cubeVertices, primitives.cubeColors, primitives.cubeIndices);
+    arrowBody.vertexCount = primitives.cubeIndices.size();
+
+    arrowHead.VAO = createVertexArray(primitives.arrowVertices, primitives.arrowColors, primitives.arrowIndices);
+    arrowHead.vertexCount = primitives.arrowIndices.size();
 
 }
 
@@ -322,13 +366,17 @@ void button_input_callback(GLFWwindow* window, int button, int action, int mods)
         cursorInNdc(screenX, screenY, screenW, screenH, clickStart.x, clickStart.y);
         // reset the end position
         cursorInNdc(screenX, screenY, screenW, screenH, clickEnd.x, clickEnd.y);
-
+        lMouseHeld = true;
+        flyTowardsTarget = false;
+        planePos = glm::vec3(clickStart.x, clickStart.y, 0);
     }
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
         // set the end position
         cursorInNdc(screenX, screenY, screenW, screenH, clickEnd.x, clickEnd.y);
         // reset the start position
         cursorInNdc(screenX, screenY, screenW, screenH, clickStart.x, clickStart.y);
+        lMouseHeld = false;
+        flyTowardsTarget = true;
     }
 }
 
