@@ -49,6 +49,9 @@ const unsigned int SCR_HEIGHT = 600;
 // -----------------------------------
 SceneObject cube;
 Shader* shaderProgram;
+SceneObject planeBody;
+SceneObject planeWing;
+SceneObject planePropeller;
 
 // global variables used for control
 // ---------------------------------
@@ -145,6 +148,25 @@ int main()
     return 0;
 }
 
+glm::vec3 trackballProjection(glm::vec2 p, float r)
+{
+    float magnitude = glm::sqrt(p.x * p.x + p.y * p.y);
+    if (g_andersonTrackball) {
+        // TODO - Anderson trackball
+        if (magnitude <= r / glm::sqrt(2))
+            return glm::vec3(p, glm::sqrt(r * r - (p.x * p.x + p.y * p.y)));
+        else
+            return glm::vec3(p, (r * r) / (2 * magnitude));
+    }
+    else {
+        // TODO - Shoemake trackball
+        if (magnitude <= r)
+            return glm::vec3(p, glm::sqrt(r * r - (p.x * p.x + p.y * p.y)));
+        else
+            return (r / magnitude) * glm::vec3(p, 0);
+    }
+}
+
 glm::mat4 trackballRotation(){
     glm::vec2 mouseVec =clickStart-clickEnd;
     if (glm::length(mouseVec) < 1.e-5f)
@@ -157,26 +179,21 @@ glm::mat4 trackballRotation(){
     float r = 1.0f; // trackball radius
 
     // TODO 4.3 - implement the trackball rotations here
-
     // TODO - prepare the values you will use for the trackball
-
-
-    if(g_andersonTrackball) {
-        // TODO - Anderson trackball
-
-    }
-    else {
-        // TODO - Shoemake trackball
-
-    }
+    glm::vec3 pa = trackballProjection(clickStart, r);
+    glm::vec3 pc = trackballProjection(clickEnd, r);
 
     // TODO - compute rotation axis and rotation angle,
     //  can use the same code for both trackball implementations
-
+    dotProd = glm::dot(pa, pc);
+    crossProd = glm::cross(pa, pc);
+    float crossProdMagnitude = glm::length(crossProd);
+    u = crossProd / crossProdMagnitude;
+    angle = glm::atan(crossProdMagnitude, dotProd);
 
     // correction to the rotation angle
     // - not needed when we use atan with two parameters (atan2)
-    angle += dotProd < 0.f ? glm::pi<float>() : 0.f;
+    //angle += dotProd < 0.f ? glm::pi<float>() : 0.f;
 
     // we (finally) set the rotation!
     glm::mat4 rotation = glm::rotate(abs(angle), u);
@@ -190,15 +207,47 @@ void drawObject(){
     // stored rotation, then current trackball rotation
     glm::mat4 model = trackballRotation() * storedRotation;
 
-    // scale the cube to half the size (not needed for the plane)
+    /*// scale the cube to half the size (not needed for the plane)
     glm::mat4 scale = glm::scale(.5f, .5f, .5f);
 
     // draw cube
     shaderProgram->setMat4("model", model * scale);
-    cube.drawSceneObject();
+    cube.drawSceneObject();*/
 
     // TODO 4.4 - replace the cube with the plane from exercise 4.1/4.2
 
+    // draw plane body and right wing
+    shaderProgram->setMat4("model", model);
+    planeBody.drawSceneObject();
+    planeWing.drawSceneObject();
+
+    // propeller,
+    // half size -> make perpendicular to plane forward axis -> rotate around plane forward axis -> move to the tip of the plane
+    glm::mat4 propeller = model * glm::translate(.0f, .5f, .0f) *
+        glm::rotate(currentTime * 10.0f, glm::vec3(0.0, 1.0, 0.0)) *
+        glm::rotate(glm::half_pi<float>(), glm::vec3(1.0, 0.0, 0.0)) *
+        glm::scale(.5f, .5f, .5f);
+
+    shaderProgram->setMat4("model", propeller);
+    planePropeller.drawSceneObject();
+
+    // right wing back,
+    // half size -> move to the back
+    glm::mat4 wingRightBack = model * glm::translate(0.0f, -0.5f, 0.0f) * glm::scale(.5f, .5f, .5f);
+    shaderProgram->setMat4("model", wingRightBack);
+    planeWing.drawSceneObject();
+
+    // left wing,
+    // mirror in x
+    glm::mat4 wingLeft = model * glm::scale(-1.0f, 1.0f, 1.0f);
+    shaderProgram->setMat4("model", wingLeft);
+    planeWing.drawSceneObject();
+
+    // left wing back,
+    // half size + mirror in x -> move to the back
+    glm::mat4 wingLeftBack = model * glm::translate(0.0f, -0.5f, 0.0f) * glm::scale(-.5f, .5f, .5f);
+    shaderProgram->setMat4("model", wingLeftBack);
+    planeWing.drawSceneObject();
 
 }
 
@@ -215,7 +264,24 @@ void setup(){
     cube.vertexCount = primitives.cubeIndices.size();
 
     // TODO 4.4 - initialize the airplane parts
+    PlaneModel& airplane = PlaneModel::getInstance();
+    // initialize plane body mesh objects
+    planeBody.VAO = createVertexArray(airplane.planeBodyVertices,
+        airplane.planeBodyColors,
+        airplane.planeBodyIndices);
+    planeBody.vertexCount = airplane.planeBodyIndices.size();
 
+    // initialize plane wing mesh objects
+    planeWing.VAO = createVertexArray(airplane.planeWingVertices,
+        airplane.planeWingColors,
+        airplane.planeWingIndices);
+    planeWing.vertexCount = airplane.planeWingIndices.size();
+
+    // initialize plane wing mesh objects
+    planePropeller.VAO = createVertexArray(airplane.planePropellerVertices,
+        airplane.planePropellerColors,
+        airplane.planePropellerIndices);
+    planePropeller.vertexCount = airplane.planePropellerIndices.size();
 
 }
 
