@@ -211,17 +211,22 @@ glm::mat4 viewProjection(){
     if (g_perspectiveProjection) {
         // TODO 5.1 - create a view matrix, that transforms points in the world coordinates to the camera coordinates
         //  you can use glm::lookat for that, set position to (0,0,2) and the camera forward to (0,0,-1)
+        glm::vec3 cameraPosition(0.f, 0.f, 2.f);
+        glm::vec3 cameraForward(0.f, 0.f, -1.f);
+        glm::vec3 worldUp(0.f, 1.f, 0.f);
+
+        glm::mat4 view = glm::lookAt(cameraPosition, cameraForward, worldUp);
 
 
         // TODO 5.1 - create a projection using the glm::perspectiveFov function,
         //  and use it to view the object (i.e. multiply with model)
-
+        glm::mat4 projection = glm::perspectiveFov(glm::radians(70.f), (float)SCR_WIDTH, (float)SCR_HEIGHT, .01f, 10.f);
 
         // TODO 5.1 - multiply the matrices together in the right order to return the viewprojection matrix,
         //  you want the final matrix to first move points into camera coordinates, and then project
         //  press 6 to see the result
 
-        return glm::mat4(1);
+        return projection * view;
     }
     else {
         // ortographic in the ndc range

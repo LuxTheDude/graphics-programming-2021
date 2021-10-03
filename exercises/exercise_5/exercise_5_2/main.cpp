@@ -59,6 +59,7 @@ float currentTime;
 glm::vec3 camForward(.0f, .0f, -1.0f);
 glm::vec3 camPosition(.0f, 1.6f, 0.0f);
 float linearSpeed = 0.15f, rotationGain = 30.0f;
+float mousePrevX = 0.f, mousePrevY = 0.f;
 
 
 int main()
@@ -304,15 +305,40 @@ void cursor_input_callback(GLFWwindow* window, double posX, double posY){
     // TODO - rotate the camera position based on mouse movements
     //  if you decide to use the lookAt function, make sure that the up vector and the
     //  vector from the camera position to the lookAt target are not collinear
+    float x, y;
+    cursorInRange(posX, posY, SCR_WIDTH, SCR_HEIGHT, 0, 1, x, y);
+    float dx = mousePrevX - x;
+    float dy = mousePrevY - y;
+    glm::mat4 horizontalRot = glm::rotateY(glm::radians(rotationGain) * dx);
+    glm::vec3 newForward = horizontalRot * glm::vec4(camForward, 1.f);
+    glm::vec3 verticalRotAxis = glm::cross(newForward, glm::vec3(0.f, 1.f, 0.f));
+    glm::mat4 verticalRot = glm::rotate(glm::radians(rotationGain) * -dy, verticalRotAxis);
+    newForward = verticalRot * glm::vec4(newForward, 1.f);
+    newForward = glm::normalize(newForward);
+    float dotProd = glm::dot(newForward, glm::vec3(0.f, 1.f, 0.f));
+    if (glm::abs(dotProd) < .99f)
+        camForward = newForward;
 
+
+    mousePrevX = x;
+    mousePrevY = y;
 }
 
 void processInput(GLFWwindow *window) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
-
     // TODO move the camera position based on keys pressed (use either WASD or the arrow keys)
-
+    glm::vec3 dir(0.f,0.f,0.f);
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        dir += camForward;
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        dir += -glm::normalize(glm::cross(camForward, glm::vec3(0.f, 1.f, 0.f)));
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        dir += -camForward;
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        dir += glm::normalize(glm::cross(camForward, glm::vec3(0.f, 1.f, 0.f)));
+    if(glm::length(dir) != 0)
+    camPosition += glm::normalize(dir)*linearSpeed;
 }
 
 
