@@ -1,7 +1,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
-#include <openGLSetup.h>
+#include <setup.h>
 
 #include <vector>
 #include <chrono>
@@ -26,10 +26,15 @@ struct SceneObject{
 struct Particles {
     unsigned int VAO;
     unsigned int vertexCount;
-    void drawParticles(GLenum mode) const {
+    void drawParticles(int precipitationType) const {
         glEnable(GL_BLEND);
         glBindVertexArray(VAO);
-        glDrawArrays(mode, 0, vertexCount);
+        if (precipitationType == 1)
+            glDrawArrays(GL_LINES, 0, vertexCount);
+        else if (precipitationType == 2)
+            glDrawElements(GL_POINTS, vertexCount / 2.0f, GL_UNSIGNED_INT, 0);
+        else
+            std::cout << "Unknown Precipitation Type: " << precipitationType << std::endl;
         glDisable(GL_BLEND);
     }
 };
@@ -38,12 +43,12 @@ struct Particles {
 // ---------------------
 void setupObjects();
 void setupParticles();
-void drawParticles(glm::mat4 viewProjection, Shader* shaderProgram, GLenum mode);
+int drawParticles(glm::mat4 viewProjection);
 void drawObjects(glm::mat4 viewProjection);
 void drawCube(glm::mat4 model);
 void drawPlane(glm::mat4 model);
 glm::mat4 getViewProjectionMatrix();
-float getRandomFloat(int min, int max);
+float getRandomFloat(float min, float max);
 
 // global variables used for rendering
 // -----------------------------------
@@ -72,8 +77,13 @@ const unsigned int cubeSize = 30;
 float gravityOffsets[numSimulations];
 glm::vec3 windOffsets[numSimulations];
 glm::vec3 randomOffsets[numSimulations];
-const float gravity = -0.3f;
-const glm::vec3 wind(0.1f, 0.0f, 0.01f);
+float gravity[numSimulations];// = -0.3f;
+glm::vec3 wind[numSimulations]; //(0.1f, 0.0f, 0.01f);
+
+const float gravityMax = 0.3;
+const float gravityMin = 0.2;
+const glm::vec3 windMax(0.3f, 0.0f, 0.03f);
+const glm::vec3 windMin(0.0f);
 
 int main()
 {
@@ -112,9 +122,11 @@ int main()
 
         // notice that we also need to clear the depth buffer (aka z-buffer) every new frame
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
         glm::mat4 viewProjection = getViewProjectionMatrix();
         drawObjects(viewProjection);
-        drawParticles(viewProjection, rainShaderProgram, GL_LINES);
+        if (drawParticles(viewProjection) == -1)
+            break;
         prevViewProj = viewProjection;
 
 
@@ -145,25 +157,36 @@ glm::mat4 getViewProjectionMatrix()
     return projection * view;
 }
 
-void drawParticles(glm::mat4 viewProjection, Shader* shaderProgram, GLenum mode) {
+int drawParticles(glm::mat4 viewProjection) {
+    Shader* shaderProgram;
+    if (precipitationType == 1)
+        shaderProgram = rainShaderProgram;
+    else if (precipitationType == 2)
+        shaderProgram = snowShaderProgram;
+    else
+    {
+        std::cout << "Unknown Precipitation Type: " << precipitationType << std::endl;
+        return -1;
+    }
     shaderProgram->use();
     shaderProgram->setMat4("model", viewProjection);
     shaderProgram->setMat4("prevModel", prevViewProj);
     shaderProgram->setVec3("camPos", camPosition);
     shaderProgram->setVec3("camForward", camForward);
-    shaderProgram->setVec3("velocity", glm::vec3(0, gravity, 0) + wind);
     shaderProgram->setFloat("cubeSize", cubeSize);
 
     for (unsigned int i = 0; i < numSimulations; i++)
     {
-        gravityOffsets[i] += gravity;
-        windOffsets[i] += wind;
+        shaderProgram->setVec3("velocity", glm::vec3(0, gravity[i], 0) + wind[i]);
+        gravityOffsets[i] += gravity[i];
+        windOffsets[i] += wind[i];
         glm::vec3 offset = glm::vec3(0, gravityOffsets[i], 0) + windOffsets[i] + randomOffsets[i];
         offset -= camPosition + camForward + (((float) cubeSize) / 2.f);
         offset = glm::mod(offset, ((float) cubeSize));
         shaderProgram->setVec3("offset", offset);
-        particles.drawParticles(mode);
+        particles.drawParticles(precipitationType);
     }
+    return 0;
 }
 
 
@@ -230,15 +253,24 @@ void setupParticles() {
     std::vector<float> positions(numParticles * 3 * 2);
     for (unsigned int i = 0; i < numParticles*3*2; i += 3*2)
     {
-        positions[i] = positions[i+3] = getRandomFloat(cubeSize, cubeSize * 2);
-        positions[i+1] = positions[i+4] = getRandomFloat(cubeSize, cubeSize * 2);
-        positions[i+2] = positions[i + 5] =  getRandomFloat(cubeSize, cubeSize * 2);
+        positions[i] = positions[i+3] = getRandomFloat((float) cubeSize, cubeSize * 2);
+        positions[i+1] = positions[i+4] = getRandomFloat((float) cubeSize, cubeSize * 2);
+        positions[i+2] = positions[i + 5] =  getRandomFloat((float) cubeSize, cubeSize * 2);
     }
-    particles.VAO = createVertexArray(positions);
+    std::vector<unsigned int> indices(numParticles * 3);
+    for (unsigned int i = 1; i <= numParticles * 3; i += 3)
+    {
+        indices[i-1] = 0 + (i * 3);
+        indices[i] = 1 + (i * 3);
+        indices[i + 1] = 2 + (i * 3);
+    }
+    particles.VAO = createVertexArray(positions, indices);
     particles.vertexCount = positions.size();
 
     for (unsigned int i = 0; i < numSimulations; i++)
     {
+        gravity[i] = -getRandomFloat(gravityMin, gravityMax);
+        wind[i] = glm::vec3(getRandomFloat(windMin.x, windMax.x), getRandomFloat(windMin.y, windMax.y), getRandomFloat(windMin.z, windMax.z));
         gravityOffsets[i] = 0;
         windOffsets[i] = glm::vec3(0);
         randomOffsets[i] = glm::vec3(getRandomFloat(0, 5), getRandomFloat(0, 5), getRandomFloat(0, 5));
@@ -270,10 +302,10 @@ void setupObjects(){
     planePropeller.vertexCount = planePropellerIndices.size();
 }
 
-float getRandomFloat(int min, int max)
+float getRandomFloat(float min, float max)
 {
     static bool randomSeedSet = false;
-    assert(max > min);
+    assert(max >= min);
 
     if (!randomSeedSet)
     {

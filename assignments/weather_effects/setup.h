@@ -8,6 +8,7 @@ unsigned int createArrayBuffer(const std::vector<float>& array);
 unsigned int createElementArrayBuffer(const std::vector<unsigned int>& array);
 unsigned int createVertexArray(const std::vector<float>& positions, const std::vector<float>& colors, const std::vector<unsigned int>& indices, Shader* shaderProgram);
 unsigned int createVertexArray(const std::vector<float>& positions);
+unsigned int createVertexArray(const std::vector<float>& positions, const std::vector<unsigned int>& indices);
 
 //GLFW and input functions
 void cursorInRange(float screenX, float screenY, int screenW, int screenH, float min, float max, float& x, float& y);
@@ -20,7 +21,8 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 const unsigned int SCR_WIDTH = 600;
 const unsigned int SCR_HEIGHT = 600;
 
-//Input variables
+//global variables for control
+int precipitationType = 1;
 float mousePrevX = 0.f, mousePrevY = 0.f;
 glm::vec3 camForward(.0f, .0f, -1.0f);
 glm::vec3 camPosition(.0f, 1.6f, 0.0f);
@@ -95,6 +97,20 @@ unsigned int createVertexArray(const std::vector<float>& positions) {
     createArrayBuffer(positions);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+    return VAO;
+}
+
+unsigned int createVertexArray(const std::vector<float>& positions, const std::vector<unsigned int>& indices) {
+    unsigned int VAO;
+    glGenVertexArrays(1, &VAO);
+    glBindVertexArray(VAO);
+
+    createArrayBuffer(positions);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+    createElementArrayBuffer(indices);
 
     return VAO;
 }
@@ -191,6 +207,13 @@ void cursor_input_callback(GLFWwindow* window, double posX, double posY) {
 void processInput(GLFWwindow* window) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
+
+    if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
+        precipitationType = 1;
+
+    if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
+        precipitationType = 2;
+
     // TODO move the camera position based on keys pressed (use either WASD or the arrow keys)
     glm::vec3 dir(0.f, 0.f, 0.f);
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)

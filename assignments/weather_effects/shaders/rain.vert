@@ -10,7 +10,7 @@ uniform vec3 camPos;
 uniform vec3 camForward;
 uniform vec3 velocity;
 
-float heightScale = 0.5;
+float heightScale = 1.1;
 
 void main()
 {
