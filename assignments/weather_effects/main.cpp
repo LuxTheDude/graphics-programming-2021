@@ -168,7 +168,7 @@ int main()
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glm::mat4 viewProjection = getViewProjectionMatrix();
         drawObjects(viewProjection);
-        drawParticles(viewProjection, rainShaderProgram, GL_LINE);
+        drawParticles(viewProjection, rainShaderProgram, GL_LINES);
         prevViewProj = viewProjection;
 
 
