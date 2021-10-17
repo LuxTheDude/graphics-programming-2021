@@ -11,7 +11,7 @@
 #include "plane_model.h"
 #include "primitives.h"
 
-// structure to hold render info
+// structures to hold render info
 // -----------------------------
 struct SceneObject{
     unsigned int VAO;
@@ -25,10 +25,10 @@ struct SceneObject{
 struct Particles {
     unsigned int VAO;
     unsigned int vertexCount;
-    void drawParticles() const {
+    void drawParticles(GLenum mode) const {
         glEnable(GL_BLEND);
         glBindVertexArray(VAO);
-        glDrawArrays(GL_LINES, 0, vertexCount);
+        glDrawArrays(mode, 0, vertexCount);
         glDisable(GL_BLEND);
     }
 };
@@ -41,7 +41,7 @@ unsigned int createVertexArray(const std::vector<float> &positions, const std::v
 unsigned int createVertexArray(const std::vector<float>& positions);
 void setupObjects();
 void setupParticles();
-void drawParticles(glm::mat4 viewProjection, Shader* shaderProgram);
+void drawParticles(glm::mat4 viewProjection, Shader* shaderProgram, GLenum mode);
 void drawObjects(glm::mat4 viewProjection);
 glm::mat4 getViewProjectionMatrix();
 float getRandomFloat(int min, int max);
@@ -71,7 +71,7 @@ SceneObject planePropeller;
 Particles particles;
 
 Shader* objectShaderProgram;
-Shader* particleShaderProgram;
+Shader* snowShaderProgram;
 Shader* rainShaderProgram;
 
 // global variables used for control
@@ -129,7 +129,7 @@ int main()
         return -1;
     }
 
-    // setup mesh objects
+    // setup mesh objects and particles
     // ---------------------------------------
     setupObjects();
     setupParticles();
@@ -168,7 +168,7 @@ int main()
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glm::mat4 viewProjection = getViewProjectionMatrix();
         drawObjects(viewProjection);
-        drawParticles(viewProjection, rainShaderProgram);
+        drawParticles(viewProjection, rainShaderProgram, GL_LINE);
         prevViewProj = viewProjection;
 
 
@@ -183,7 +183,7 @@ int main()
     }
 
     delete objectShaderProgram;
-    delete particleShaderProgram;
+    delete snowShaderProgram;
     delete rainShaderProgram;
 
     // glfw: terminate, clearing all previously allocated GLFW resources.
@@ -199,14 +199,14 @@ glm::mat4 getViewProjectionMatrix()
     return projection * view;
 }
 
-void drawParticles(glm::mat4 viewProjection, Shader* shaderProgram) {
+void drawParticles(glm::mat4 viewProjection, Shader* shaderProgram, GLenum mode) {
     shaderProgram->use();
     shaderProgram->setMat4("model", viewProjection);
     shaderProgram->setMat4("prevModel", prevViewProj);
-    shaderProgram->setFloat("cubeSize", cubeSize);
     shaderProgram->setVec3("camPos", camPosition);
     shaderProgram->setVec3("camForward", camForward);
     shaderProgram->setVec3("velocity", glm::vec3(0, gravity, 0) + wind);
+    shaderProgram->setFloat("cubeSize", cubeSize);
 
     for (unsigned int i = 0; i < numSimulations; i++)
     {
@@ -216,7 +216,7 @@ void drawParticles(glm::mat4 viewProjection, Shader* shaderProgram) {
         offset -= camPosition + camForward + (((float) cubeSize) / 2.f);
         offset = glm::mod(offset, ((float) cubeSize));
         shaderProgram->setVec3("offset", offset);
-        particles.drawParticles();
+        particles.drawParticles(mode);
     }
 }
 
@@ -278,8 +278,9 @@ void drawPlane(glm::mat4 model){
 }
 
 void setupParticles() {
-    particleShaderProgram = new Shader("shaders/particles.vert", "shaders/particles.frag");
+    snowShaderProgram = new Shader("shaders/snow.vert", "shaders/snow.frag");
     rainShaderProgram = new Shader("shaders/rain.vert", "shaders/rain.frag");
+
     std::vector<float> positions(numParticles * 3 * 2);
     for (unsigned int i = 0; i < numParticles*3*2; i += 3*2)
     {

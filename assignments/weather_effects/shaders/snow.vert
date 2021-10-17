@@ -14,5 +14,5 @@ void main()
 	worldPos += camPos + camForward - (cubeSize / 2.0);
 	gl_Position = model * vec4(worldPos, 1.0);
 	float dist = distance(vec3(0), gl_Position.xyz);
-	gl_PointSize = min(10.0/dist, 5);
+	gl_PointSize = min(100.0/dist, 5);
 }
