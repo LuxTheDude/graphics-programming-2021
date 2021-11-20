@@ -58,9 +58,8 @@ struct Config {
     // ambient light
     glm::vec3 ambientLightColor = {1.0f, 1.0f, 1.0f};
     float ambientLightIntensity = 0.2f;
-
     // light 1
-    glm::vec3 light1Position = {-0.8f, 2.4f, 0.0f};
+    glm::vec3 light1Position = { -0.8f, 2.4f, 0.0f };
     glm::vec3 light1Color = {1.0f, 1.0f, 1.0f};
     float light1Intensity = 1.0f;
 
@@ -127,7 +126,7 @@ int main()
     // ----------------------------------
     gouraud_shading = new Shader("shaders/gouraud_shading.vert", "shaders/gouraud_shading.frag");
     phong_shading = new Shader("shaders/phong_shading.vert", "shaders/phong_shading.frag");
-    shader = gouraud_shading;
+    shader = phong_shading;
     carModel = new Model(std::vector<string>{"car/Body_LOD0.obj", "car/Interior_LOD0.obj", "car/Paint_LOD0.obj", "car/Light_LOD0.obj", "car/Windows_LOD0.obj"});
     carWheel = new Model("car/Wheel_LOD0.obj");
     floorModel = new Model("floor/floor.obj");
@@ -260,11 +259,21 @@ void drawObjects(){
 
     // TODO exercise 8 - set the missing uniform variables here
     // light uniforms
-
+    shader->setVec3("ambientColor", config.ambientLightColor * config.ambientLightIntensity);
+    shader->setVec3("light1Pos", config.light1Position);
+    shader->setVec3("light1Color", config.light1Color * config.light1Intensity);
+    shader->setVec3("light2Pos", config.light2Position);
+    shader->setVec3("light2Color", config.light2Color * config.light2Intensity);
     // material uniforms
-
+    shader->setVec3("reflectionColor", config.reflectionColor);
+    shader->setFloat("ambientReflectance", config.ambientReflectance);
+    shader->setFloat("diffuseReflectance", config.diffuseReflectance);
+    shader->setFloat("specularReflectance", config.specularReflectance);
+    shader->setFloat("specularExponent", config.specularExponent);
     // attenuation uniforms
-
+    shader->setFloat("attenuationC0", config.attenuationC0);
+    shader->setFloat("attenuationC1", config.attenuationC1);
+    shader->setFloat("attenuationC2", config.attenuationC2);
 
 
     // the typical transformation uniforms are already set for you, these are:
