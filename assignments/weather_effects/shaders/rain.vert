@@ -20,7 +20,7 @@ void main()
 	vec4 top = model * vec4(prevWorldPos, 1.0);
 	vec4 topPrev = prevModel * vec4(prevWorldPos, 1.0);
 	vec4 bottom = model * vec4(worldPos, 1.0);
-	gl_Position = mix(top, bottom, mod(gl_VertexID, 2));
+	gl_Position = mix(topPrev, bottom, mod(gl_VertexID, 2));
 
 	vec2 dir = (top.xy/top.w) - (bottom.xy/bottom.w);
 	vec2 dirPrev = (topPrev.xy/topPrev.w) - (bottom.xy/bottom.w);
