@@ -30,8 +30,13 @@ edge_rasterizer::~edge_rasterizer()
 void edge_rasterizer::init(int x1, int y1, int x2, int y2)
 {
     // TODO
-    std::cout << "edge_rasterizer::init(int, int, int, int): Not implemented yet!" << std::endl;
+    this->two_edges = false;
+    this->x1 = x1;
+    this->y1 = y1;
+    this->x2 = x2;
+    this->y2 = y2;
 
+    this->init_edge(x1, y1, x2, y2);
 }
 
 /*
@@ -46,7 +51,20 @@ void edge_rasterizer::init(int x1, int y1, int x2, int y2)
 void edge_rasterizer::init(int x1, int y1, int x2, int y2, int x3, int y3)
 {
     // TODO
-    std::cout << "edge_rasterizer::init(int, int, int, int, int, int): Not implemented yet!" << std::endl;
+    this->two_edges = true;
+    this->x1 = x1;
+    this->y1 = y1;
+    this->x2 = x2;
+    this->y2 = y2;
+    this->x3 = x3;
+    this->y3 = y3;
+
+    bool horizontal = !(this->init_edge(x1, y1, x2, y2));
+    if (horizontal) {
+        this->two_edges = false;
+        this->init_edge(x2, y2, x3, y3);
+    }
+    
 
 }
 
@@ -65,8 +83,14 @@ bool edge_rasterizer::more_fragments() const
 void edge_rasterizer::next_fragment()
 {
     // TODO
-    std::cout << "edge_rasterizer::next_fragment(): Not implemented yet!" << std::endl;
-
+    this->y_current += this->y_step;
+    if (this->y_current < this->y_stop)
+        this->update_edge();
+    else if (this->two_edges) {
+        this->init_edge(x2, y2, x3, y3);
+        this->two_edges = false;
+    }
+    this->valid = (this->y_current < this->y_stop);
 }
 
 /*
@@ -108,9 +132,23 @@ int edge_rasterizer::y() const
 bool edge_rasterizer::init_edge(int x1, int y1, int x2, int y2)
 {
     // TODO
-    std::cout << "edge_rasterizer::init_edge(int, int, int, int): Not implemented yet!" << std::endl;
+    this->x_start = x1;
+    this->y_start = y1;
+    this->x_stop = x2;
+    this->y_stop = y2;
+    this->x_current = this->x_start;
+    this->y_current = this->y_start;
+    int dx = this->x_stop - this->x_start;
+    int dy = this->y_stop - this->y_start;
 
-    return this->valid;
+    this->x_step = (dx < 0) ? -1 : 1;
+    this->y_step = 1;
+
+    this->Numerator = std::abs(dx);
+    this->Denominator = std::abs(dy);
+    this->Accumulator = (x_step > 0) ? Denominator : 1;
+
+    return (this->valid = (this->y_current < this->y_stop));
 }
 
 /*
@@ -119,6 +157,10 @@ bool edge_rasterizer::init_edge(int x1, int y1, int x2, int y2)
 void edge_rasterizer::update_edge()
 {
     // TODO
-    std::cout << "edge_rasterizer::update_edge(): Not implemented yet!" << std::endl;
+    this->Accumulator += this->Numerator;
+    while (this->Accumulator > this->Denominator) {
+        this->x_current += this->x_step;
+        this->Accumulator -= this->Denominator;
+    }
 
 }

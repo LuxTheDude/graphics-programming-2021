@@ -6,8 +6,8 @@
 #include "CustomFrameBuffer.h"
 
 CustomFrameBuffer::CustomFrameBuffer(uint32_t width, uint32_t height) : W(width), H(height){
-    if (buffer != nullptr) // ensure that there is no buffer allocated ...
-        delete buffer;
+    //if (buffer != nullptr) // ensure that there is no buffer allocated ...
+        //delete buffer;
     int size = W * H * 3 * 3; // (the hardcoded 3s are the width and height of each "pixel")
     buffer = new Colors::color[size]; // ... and allocate one
     clearBuffer();
