@@ -55,7 +55,18 @@ namespace rt{
             //  all intersection computations should happen in the same space, no matter what that space is)
             //  - create a ray with the camera origin, and the vector from the camera origin to the pixel you have just found
             //  - call the TraceRay method using that ray, and store the resulting color in the frame buffer (fb)
-            fb.paintAt(fb.W/2, fb.H/2, toRGBA32(white));
+            //fb.paintAt(fb.W/2, fb.H/2, toRGBA32(white));
+            for (int i = 0; i < fb.H; i++)
+            {
+                for (int j = 0; j < fb.W; j++)
+                {
+                    vec4 pixViewPos = lower_left_corner + vec4(j * pixel_size.x, i * pixel_size.y, 0.0f, 0.0f);
+                    vec3 pixModelPos = view_to_model * pixViewPos;
+                    Ray ray = Ray(cam_pos, normalize(pixModelPos - vec3(cam_pos)));
+                    color c = TraceRay(ray, depth, vts);
+                    fb.paintAt(j, i, toRGBA32(c));
+                }
+            }
 
         }
 
@@ -72,15 +83,25 @@ namespace rt{
 
 
             // TODO ex 10.2 replace the current i_normal and i_col computation with their interpolated versions
-            vec3 i_normal = vts[hitInfo.hit_ID].norm;
-            color i_col = vts[hitInfo.hit_ID].col;
+            vec3 i_normal = vts[hitInfo.hit_ID].norm   * hitInfo.barycentric.x + 
+                            vts[hitInfo.hit_ID+1].norm * hitInfo.barycentric.y + 
+                            vts[hitInfo.hit_ID+2].norm * hitInfo.barycentric.z;
+            i_normal = normalize(i_normal);
+
+            color i_col = vts[hitInfo.hit_ID].col   * hitInfo.barycentric.x +
+                          vts[hitInfo.hit_ID+1].col * hitInfo.barycentric.y +
+                          vts[hitInfo.hit_ID+2].col * hitInfo.barycentric.z;
 
             vec3 i_pos = ray.origin + ray.direction * hitInfo.dist;
 
 
             // TODO ex 10.3 implement the phong reflection model for the point light below
-            vec3 light_pos(0,1.9f,0); // light position in model space
-            col = i_col; // set the light reflection color here
+            float ambient = 0.1f, diffuse = 0.5f, specular = 0.5f, shininess = 10;
+            vec3 light_pos(0, 1.9f, 0); // light position in model space
+            vec3 light_dir = normalize(light_pos - i_pos);
+
+            col = ambient * i_col + diffuse * i_col * max(dot(light_dir, i_normal), .0f) +
+                specular * pow(max(dot(light_dir, i_normal), .0f), shininess);
 
 
             // the recursion/reflection happens here!
