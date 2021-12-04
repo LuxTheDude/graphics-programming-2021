@@ -21,13 +21,18 @@ void main()
 
 
     // TODO exercise 10.1 - reflect camera to fragment vector and sample the skybox with the reflected direction
-    vec4 reflectColor = vec4(1,1,1,1);
+    vec3 reflection = reflect(I, N);
+    vec4 reflectColor = texture(skybox, reflection);
 
     // TODO exercise 10.2 - refract the camera to fragment vector and sample the skybox with the reffracted direction
-    vec4 refractColor = vec4(1,1,1,1);
+    vec3 refraction = refract(I, N, n1/n2);
+    vec4 refractColor = texture(skybox, refraction);
 
     // TODO exercise 10.3 - implement the Schlick approximation of the Fresnel factor and set "reflectionProportion" accordingly
-    float reflectionProportion = reflectionFactor;
+    float R0 = pow((n1-n2)/(n1+n2), 2);
+    float angle = dot(N, V); //No need to divide by length as they are normalized
+    float reflectionProportion = R0 + (1.0f-R0) * pow(1.0f - angle, 5);
+    //float reflectionProportion = reflectionFactor;
 
 
     // we combine reflected and refracted color here
