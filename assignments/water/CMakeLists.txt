@@ -24,7 +24,7 @@ endif()
 file(GLOB target_src "*.h" "*.cpp") # look for source files
 file(GLOB target_shaders "shaders/*.vert" "shaders/*.frag") # look for shaders
 
-set(output_file "water")
+set(output_file "assignment_water")
 add_executable(${output_file} ${target_src} ${target_shaders})
 
 ## set link libraries
@@ -32,7 +32,6 @@ target_link_libraries(${output_file} ${libraries})
 
 ## add local source directory to include paths
 target_include_directories(${output_file} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-
 
 ## copy shaders folder to build folder
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/shaders DESTINATION ${CMAKE_CURRENT_BINARY_DIR})

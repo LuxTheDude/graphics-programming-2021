@@ -3,7 +3,7 @@
 # ---------------------------------------------------------------------------------
 cmake_minimum_required(VERSION 3.3)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -34,6 +34,7 @@ add_subdirectory(${EXTERNAL_LIBRARIES_SOURCE_PATH}/glfw)
 add_subdirectory(${EXTERNAL_LIBRARIES_SOURCE_PATH}/glad)
 add_subdirectory(${EXTERNAL_LIBRARIES_SOURCE_PATH}/imgui)
 add_subdirectory(${EXTERNAL_LIBRARIES_SOURCE_PATH}/assimp)
+add_subdirectory(${EXTERNAL_LIBRARIES_SOURCE_PATH}/PerlinNoise) 
 
 
 
@@ -47,6 +48,7 @@ include_directories(
         ${EXTERNAL_LIBRARIES_SOURCE_PATH}/STBImage
         ${EXTERNAL_LIBRARIES_SOURCE_PATH}/assimp/include
         ${EXTERNAL_LIBRARIES_SOURCE_PATH}/assimp
+	    ${EXTERNAL_LIBRARIES_SOURCE_PATH}/PerlinNoise
         )
 
 ## add the actual projects to build

@@ -25,7 +25,9 @@ const unsigned int SCR_HEIGHT = 600;
 int precipitationType = 1;
 float mousePrevX = 0.f, mousePrevY = 0.f;
 glm::vec3 camForward(.0f, .0f, -1.0f);
-glm::vec3 camPosition(.0f, 1.6f, 0.0f);
+glm::vec3 camPosition(.0f, .0f, 0.0f);
+glm::vec3 projForward = camForward;
+glm::vec3 projPosition = camPosition;
 float linearSpeed = 0.15f, rotationGain = 30.0f;
 
 void initGLFW()
@@ -56,7 +58,7 @@ GLFWwindow* createGLFWWindow()
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetCursorPosCallback(window, cursor_input_callback);
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
     return window;
 }
