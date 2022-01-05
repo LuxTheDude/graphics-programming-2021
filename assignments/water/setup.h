@@ -23,11 +23,12 @@ const unsigned int SCR_HEIGHT = 600;
 
 //global variables for control
 int precipitationType = 1;
+bool firstMouseMove = true;
 float mousePrevX = 0.f, mousePrevY = 0.f;
-glm::vec3 camForward(.0f, .0f, -1.0f);
-glm::vec3 camPosition(.0f, .0f, 0.0f);
-glm::vec3 projForward = camForward;
-glm::vec3 projPosition = camPosition;
+glm::vec3 camForward = glm::normalize(glm::vec3(.0f, -1.0f, 0.5f ));
+glm::vec3 camPosition(0.0f, 20.0f, 0.0f);
+glm::vec3 projLookAtPoint = glm::vec3(0);
+glm::vec3 projPosition(0.0f, 20.0f, 0.0f);
 float linearSpeed = 0.15f, rotationGain = 30.0f;
 
 void initGLFW()
@@ -58,7 +59,7 @@ GLFWwindow* createGLFWWindow()
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetCursorPosCallback(window, cursor_input_callback);
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     return window;
 }
@@ -189,6 +190,16 @@ void cursor_input_callback(GLFWwindow* window, double posX, double posY) {
     //  vector from the camera position to the lookAt target are not collinear
     float x, y;
     cursorInRange(posX, posY, SCR_WIDTH, SCR_HEIGHT, 0, 1, x, y);
+
+    if (firstMouseMove)
+    {
+        mousePrevX = x;
+        mousePrevY = y;
+        firstMouseMove = false;
+        return;
+    }
+
+
     float dx = mousePrevX - x;
     float dy = mousePrevY - y;
     glm::mat4 horizontalRot = glm::rotateY(glm::radians(rotationGain) * dx);
@@ -209,12 +220,6 @@ void cursor_input_callback(GLFWwindow* window, double posX, double posY) {
 void processInput(GLFWwindow* window) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
-
-    if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
-        precipitationType = 1;
-
-    if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
-        precipitationType = 2;
 
     // TODO move the camera position based on keys pressed (use either WASD or the arrow keys)
     glm::vec3 dir(0.f, 0.f, 0.f);

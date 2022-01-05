@@ -34,9 +34,9 @@ struct Plane {
 // ---------------------
 void setupObjects();
 void setupTest();
-void drawObjects(glm::mat4 viewProjection, unsigned int VBO, unsigned int VAO);
+void drawObjects(glm::mat4 viewProjection);
 void drawTest(unsigned int VBO, unsigned int VAO);
-unsigned int generateHeightMapTexture();
+std::vector<float>* generateHeightMapTexture();
 void drawCube(glm::mat4 model);
 void drawPlane(glm::mat4 model);
 glm::mat4 getViewProjectionMatrix();
@@ -45,9 +45,11 @@ bool changeProjector();
 float getRandomFloat(float min, float max);
 glm::mat4 getRangeConversionMatrix(glm::mat4 viewProjectionMatrix, glm::mat4 pViewMatrix);
 bool linePlaneIntersection(glm::vec3 a, glm::vec3 b, Plane plane, glm::vec3* contactPoint);
+bool rayPlaneIntersection(glm::vec3 a, glm::vec3 b, Plane plane, glm::vec3* contactPoint);
 bool linePlaneIntersection2(glm::vec3 a, glm::vec3 ray, Plane plane, glm::vec3* contactPoint);
 bool changeProjector();
 void setupWater();
+glm::vec3 projectPointOntoPlane(glm::vec3 p, Plane plane);
 unsigned int getGrid(glm::mat4 rangePViewMatrix);
 
 // global variables used for rendering
@@ -75,6 +77,12 @@ Plane waterLowerBound;
 
 float counter = 0;
 bool counterDir = true;
+bool shouldBreak = false;
+int gridSize = 100;
+
+
+glm::mat4 rangeMat;
+glm::mat4 invPView;
 
 int main()
 {
@@ -101,13 +109,14 @@ int main()
     generateHeightMapTexture();
     Shader* fromBuffer = new Shader("shaders/FromBuffer.vert", "shaders/object.frag");
     Shader* HeightMapProgram = new Shader("shaders/HeightMap.vert", "shaders/HeightMap.frag");
-
+    Shader * WaterTest = new Shader("shaders/WaterTest.vert", "shaders/WaterTest.frag");
     // render loop
     // -----------
     // render every loopInterval seconds
     float loopInterval = 0.02f;
     auto begin = std::chrono::high_resolution_clock::now();
-    //setupWater();
+    setupWater();
+    setupObjects();
     //setupTest();
     while (!glfwWindowShouldClose(window))
     {
@@ -125,22 +134,8 @@ int main()
         // notice that we also need to clear the depth buffer (aka z-buffer) every new frame
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        glm::mat4 viewProjection = getViewProjectionMatrix();
-        glm::mat4 pView = getPViewMatrix();
-        glm::mat4 rangeMat = getRangeConversionMatrix(viewProjection, pView);
-        if (rangeMat != glm::mat4(1))
-        {
-            glm::mat4 invPView = glm::inverse(pView);
-
-            glm::mat4 finalMatrix = invPView * rangeMat;
-            unsigned int VAO = getGrid(finalMatrix);
-            glBindVertexArray(VAO);
-            glDrawElements(GL_TRIANGLES, 99 * 99, GL_UNSIGNED_INT, 0);
-        }
-        //drawObjects(viewProjection, VBO, VAO);
-        /*glUseProgram(HeightMapProgram->ID);
-        HeightMapProgram->setFloat("heightMapLayer", counter);
-        counter += counterDir ? 0.001f : -0.001f;
+        WaterTest->setFloat("heightMapLayer", counter);
+        counter += counterDir ? 0.01f : -0.01f;
         if (counter >= 0.9 && counterDir)
         {
             counterDir = false;
@@ -149,7 +144,27 @@ int main()
         {
             counterDir = true;
         }
-        glBindVertexArray(testVAO);
+
+        glm::mat4 viewProjection = getViewProjectionMatrix();
+        drawObjects(viewProjection);
+        glUseProgram(WaterTest->ID);
+        changeProjector();
+        WaterTest->setMat4("viewProj", viewProjection);
+        glm::mat4 pView = getPViewMatrix();
+        rangeMat = getRangeConversionMatrix(viewProjection, pView);
+        if (rangeMat != glm::mat4(1))
+        {
+            invPView = glm::inverse(pView);
+
+            glm::mat4 finalMatrix = invPView * rangeMat;
+            unsigned int VAO = getGrid(finalMatrix);
+            glBindVertexArray(VAO);
+            //glDrawElements(GL_TRIANGLES, 57000, GL_UNSIGNED_INT, 0); //TODO calculate 57000
+            glDrawArrays(GL_POINTS, 0, gridSize*gridSize);
+        }
+        //drawObjects(viewProjection, VBO, VAO);
+
+        /*glBindVertexArray(testVAO);
         glDrawArrays(GL_TRIANGLES, 0, 6);*/
         /*drawTest(VBO, VAO);
         glUseProgram(fromBuffer->ID);
@@ -177,12 +192,12 @@ int main()
     return 0;
 }
 
-unsigned int generateHeightMapTexture()
+std::vector<float>* generateHeightMapTexture()
 {
+    int gridSize = 100;
     const siv::PerlinNoise::seed_type seed = 123456u;
 
     const siv::PerlinNoise perlin{ seed };
-    int gridSize = 100;
     float stepSize = 1.0f / (float)gridSize;
     std::vector<float>* heightMap = new std::vector<float>(gridSize * gridSize * gridSize);
     for (int i = 0; i < gridSize; i++)
@@ -210,13 +225,12 @@ unsigned int generateHeightMapTexture()
 
     glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, gridSize, gridSize, gridSize, 0, GL_RED, GL_FLOAT, &((*heightMap)[0]));
     std::cout << "Yeah" << std::endl;
-    delete heightMap;
-    return heightMapTex;
+    return heightMap;
 }
 
 void setupTest()
 {
-    std::cout << "Hello World  Larl" << std::endl;
+    std::cout << "Hello World Larl" << std::endl;
     toBufferShader = new Shader("shaders/ToBuffer.vert");
     testShader = new Shader("shaders/test.vert", "shaders/object.frag");
     std::vector<float> vertices = 
@@ -233,13 +247,23 @@ void setupTest()
 
 glm::vec3 tranformCornerOfGrid(glm::vec2 corner, glm::mat4 rangePViewMatrix)
 {
-    glm::vec4 negZ = rangePViewMatrix * glm::vec4(corner, -1.0f, 1.0f);
-    glm::vec4 posZ = rangePViewMatrix * glm::vec4(corner, 1.0f, 1.0f);
-    negZ /= negZ.w;
-    posZ /= posZ.w;
+    glm::vec4 lars = glm::vec4(corner, -1.0f, 1.0f);
+    glm::vec4 henning = glm::vec4(corner, 1.0f, 1.0f);
+    glm::vec4 larsss = rangeMat * lars;
+    glm::vec4 henningggg = rangeMat * henning;
+    glm::vec4 negY = invPView * larsss;
+    glm::vec4 posY = invPView * henningggg;
+    //glm::vec4 negY = rangePViewMatrix * 
+    //glm::vec4 posY = rangePViewMatrix * 
+    negY /= negY.w;
+    posY /= posY.w;
 
     glm::vec3 contactPoint;
-    if(linePlaneIntersection(negZ, posZ, waterBase, &contactPoint))
+    //Plane waterBaseProjSpace;
+    //glm::vec4 pointProjSpace = rangePViewMatrix * glm::vec4(waterBase.point, 1);
+    //waterBaseProjSpace.point = pointProjSpace / pointProjSpace.w;
+    //waterBaseProjSpace.N = glm::normalize(rangePViewMatrix * glm::vec4(waterBase.N, 0));
+    if(rayPlaneIntersection(negY, posY, waterBase, &contactPoint))
         return contactPoint;
     else
     {
@@ -255,19 +279,21 @@ glm::vec3 index2D(int i, int j, std::vector<glm::vec3>* grid, int gridSize)
 
 void index2D(int i, int j, glm::vec3 v, std::vector<glm::vec3>* grid, int gridSize)
 {
-    (*grid)[i * gridSize + j] = v;
+    int index = i * gridSize + j;
+    (*grid)[index] = v;
 }
 
 unsigned int getGrid(glm::mat4 rangePViewMatrix)
 {
-    int gridSize = 100;
     std::vector<glm::vec3>* grid = new std::vector<glm::vec3>(gridSize*gridSize);
     float stepSize = 1.0f / (float)gridSize;
-
-    glm::vec3 ll = tranformCornerOfGrid({ 0,0 }, rangePViewMatrix); //ll
+    
+    shouldBreak = true;
+    glm::vec3 ll = tranformCornerOfGrid({0, 0}, rangePViewMatrix); //ll
     glm::vec3 ul = tranformCornerOfGrid({0, 1}, rangePViewMatrix); //ul
     glm::vec3 lr = tranformCornerOfGrid({1, 0}, rangePViewMatrix); //lr
-    glm::vec3 ur = tranformCornerOfGrid({ 1, 1 }, rangePViewMatrix); //ur
+    glm::vec3 ur = tranformCornerOfGrid({1, 1}, rangePViewMatrix); //ur
+    shouldBreak = true;
 
     index2D(0, 0, ll, grid, gridSize);
     index2D(0, gridSize-1, ul, grid, gridSize);
@@ -279,7 +305,7 @@ unsigned int getGrid(glm::mat4 rangePViewMatrix)
         glm::vec3 lv = glm::mix(ll, ul, stepSize * j);
         glm::vec3 rv = glm::mix(lr, ur, stepSize * j);
         index2D(0, j, lv, grid, gridSize);
-        index2D(gridSize - 1, j, grid, gridSize);
+        index2D(gridSize - 1, j, rv, grid, gridSize);
     }
 
     for (int j = 0; j < gridSize; j++)
@@ -317,7 +343,7 @@ unsigned int getGrid(glm::mat4 rangePViewMatrix)
             //Left triangle
             indices->push_back(j + i * gridSize);
             indices->push_back((j + 1) + i * gridSize);
-            indices->push_back((j + 1) + (i + 1) * gridSize);
+            indices->push_back((j + 1) + (i + 1) * gridSize); //TODO: Test this bullshit!!
         }
     }
 
@@ -349,29 +375,43 @@ glm::mat4 getViewProjectionMatrix()
 glm::mat4 getPViewMatrix()
 {
     glm::mat4 projection = glm::perspectiveFov(70.0f, (float)SCR_WIDTH, (float)SCR_HEIGHT, .01f, 100.0f);
-    glm::mat4 view = glm::lookAt(projPosition, projPosition + projForward, glm::vec3(0, 1, 0));
+    glm::mat4 view = glm::lookAt(projPosition, projLookAtPoint, glm::vec3(0, 1, 0));
     return projection * view;
 }
 
 bool changeProjector()
 {
     if (camPosition.y >= waterUpperBound.point.y)
-    {
-        projPosition = camPosition;
-        projForward = camForward;
-        return true;
-    }
+        projPosition = { camPosition.x, camPosition.y, camPosition.z };
+    else
+        projPosition = { camPosition.x, waterUpperBound.point.y + 1.0f, camPosition.z };
 
-    projPosition = { camPosition.x, waterUpperBound.point.y + 1.0f, camPosition.z };
+    glm::vec3 cf = camForward;
+    if ((camPosition.y > waterBase.point.y && camForward.y > 0) || camPosition.y < waterBase.point.y && camForward.y < 0)
+        cf = { cf.x, -cf.y, cf.z };
+
+
+    glm::vec3 method1Point(0);
     glm::vec3 contactPoint;
-    if (linePlaneIntersection2(camPosition, camForward, waterBase, &contactPoint) || 
-        linePlaneIntersection2(camPosition, { camForward.x, -camForward.y, camForward.z }, waterBase, &contactPoint))
+    if (rayPlaneIntersection(camPosition, camPosition + cf, waterBase, &contactPoint))
     {
-        projForward = glm::normalize(contactPoint - projPosition);
-        return true;
+        method1Point = contactPoint;
     }
-    std::cout << "Change projector method 1 not working" << std::endl;
-    return false;
+    else 
+        std::cout << "Change projector method 1 not working" << std::endl;
+
+    float fixedLength = 5.0f;
+    glm::vec3 point = camPosition + (cf * fixedLength);
+    point = projectPointOntoPlane(point, waterBase);
+    glm::vec3 method2Point = point;
+
+    float angle = glm::degrees(glm::acos(glm::abs(glm::dot(waterBase.N, camForward))));
+    float mixVal = angle / 90.0f;
+    //std::cout << "Angle: " << angle << "Mix: " << mixVal << std::endl;
+    projLookAtPoint = glm::mix(method1Point, method2Point, mixVal);
+    //std::cout << "m1: " << method1Point.y << ", m2: " << method2Point.y << std::endl;
+    std::cout << projLookAtPoint << std::endl;
+    return true;
 }
 
 void setupWater()
@@ -395,7 +435,8 @@ bool pointOnLine(T a, T b, T c)
 {
     float dist1 = glm::distance(a, c) + glm::distance(c, b);
     float dist2 = glm::distance(a, b);
-    return glm::abs(dist1 - dist2) < 0.005f;
+    float shouldBeZero = glm::abs(dist1 - dist2);
+    return shouldBeZero < 0.005f;
 }
 
 bool linePlaneIntersection(glm::vec3 a, glm::vec3 b, Plane plane, glm::vec3* contactPoint)
@@ -409,6 +450,19 @@ bool linePlaneIntersection(glm::vec3 a, glm::vec3 b, Plane plane, glm::vec3* con
     float z = x / y;
     *contactPoint = a - ray * z;
     return pointOnLine(a, b, *contactPoint);
+}
+
+bool rayPlaneIntersection(glm::vec3 a, glm::vec3 b, Plane plane, glm::vec3* contactPoint)
+{
+    glm::vec3 ray = a - b;
+    glm::vec3 diff = a - plane.point;
+    float x = glm::dot(diff, plane.N);
+    float y = glm::dot(ray, plane.N);
+    if (y == 0)
+        return false;
+    float z = x / y;
+    *contactPoint = a - ray * z;
+    return true;
 }
 
 bool isVecEqual(glm::vec3 a, glm::vec3 b)
@@ -454,11 +508,6 @@ glm::mat4 getRangeConversionMatrix(glm::mat4 viewProjectionMatrix, glm::mat4 pVi
     std::vector<glm::vec3> intersections = std::vector<glm::vec3>();
 
     glm::vec3 contactPoint;
-
-    for (int i = 0; i < 100; i++)
-    {
-
-    }
 
     if (linePlaneIntersection(frustrumCorners[0], frustrumCorners[1], waterLowerBound, &contactPoint))
         intersections.push_back(contactPoint);
@@ -543,34 +592,13 @@ glm::mat4 getRangeConversionMatrix(glm::mat4 viewProjectionMatrix, glm::mat4 pVi
     }
 
     glm::mat4 rangeMatrix = {
-        {maxX - minX, 0,           0, minX},
-        {0,           maxY - minY, 0, minY},
-        {0,           0,           1, 0   },
-        {0,           0,           0, 1   }
+        {maxX - minX, 0,          0, minX},
+        {0,           maxY- minY, 0, minY},
+        {0,           0,          1, 0   },
+        {0,           0,          0, 1   }
     };
 
-    return rangeMatrix;
-}
-
-
-void drawObjects(glm::mat4 viewProjection, unsigned int VBO, unsigned int VAO){
-    objectShaderProgram->use();
-    glBindVertexArray(VAO);
-    glBindBufferRange(GL_TRANSFORM_FEEDBACK_BUFFER, 0, VBO, 0, floorIndices.size() * sizeof(GLfloat));
-    glBeginTransformFeedback(GL_TRIANGLES);
-    glm::mat4 scale = glm::scale(1.f, 1.f, 1.f);
-
-    // draw floor (the floor was built so that it does not need to be transformed)
-    objectShaderProgram->setMat4("model", viewProjection);
-    floorObj.drawSceneObject();
-
-    // draw 2 cubes and 2 planes in different locations and with different orientations
-    //drawCube(viewProjection * glm::translate(2.0f, 1.f, 2.0f) * glm::rotateY(glm::half_pi<float>()) * scale);
-    //drawCube(viewProjection * glm::translate(-2.0f, 1.f, -2.0f) * glm::rotateY(glm::quarter_pi<float>()) * scale);
-
-    //drawPlane(viewProjection * glm::translate(-2.0f, .5f, 2.0f) * glm::rotateX(glm::quarter_pi<float>()) * scale);
-    //drawPlane(viewProjection * glm::translate(2.0f, .5f, -2.0f) * glm::rotateX(glm::quarter_pi<float>() * 3.f) * scale);
-    glEndTransformFeedback();
+    return glm::transpose(rangeMatrix);
 }
 
 
@@ -614,9 +642,9 @@ void drawPlane(glm::mat4 model){
 }
 
 
-void setupObjects(){
+void setupObjects() {
     // initialize shaders
-    objectShaderProgram = new Shader("shaders/ToBuffer.vert");
+    objectShaderProgram = new Shader("shaders/object.vert", "shaders/object.frag");
 
     // load floor mesh into openGL
     floorObj.VAO = createVertexArray(floorVertices, floorColors, floorIndices, objectShaderProgram);
@@ -651,4 +679,20 @@ float getRandomFloat(float min, float max)
     int diff = max - min;
 
     return ((float)rand()) / ((float)RAND_MAX) * diff + min;
+}
+
+void drawObjects(glm::mat4 viewProjection) {
+    objectShaderProgram->use();
+    glm::mat4 scale = glm::scale(1.f, 1.f, 1.f);
+
+    // draw floor (the floor was built so that it does not need to be transformed)
+    objectShaderProgram->setMat4("model", viewProjection);
+    floorObj.drawSceneObject();
+
+    // draw 2 cubes and 2 planes in different locations and with different orientations
+    drawCube(viewProjection * glm::translate(2.0f, 1.f, 2.0f) * glm::rotateY(glm::half_pi<float>()) * scale);
+    drawCube(viewProjection * glm::translate(-2.0f, 1.f, -2.0f) * glm::rotateY(glm::quarter_pi<float>()) * scale);
+
+    drawPlane(viewProjection * glm::translate(-2.0f, .5f, 2.0f) * glm::rotateX(glm::quarter_pi<float>()) * scale);
+    drawPlane(viewProjection * glm::translate(2.0f, .5f, -2.0f) * glm::rotateX(glm::quarter_pi<float>() * 3.f) * scale);
 }
