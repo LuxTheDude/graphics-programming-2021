@@ -50,7 +50,8 @@ bool linePlaneIntersection2(glm::vec3 a, glm::vec3 ray, Plane plane, glm::vec3* 
 bool changeProjector();
 void setupWater();
 glm::vec3 projectPointOntoPlane(glm::vec3 p, Plane plane);
-unsigned int getGrid(glm::mat4 rangePViewMatrix);
+unsigned int getGrid(glm::mat4 rangePViewMatrix, std::vector<float>*);
+void generateNormalMap(std::vector<glm::vec3>* grid);
 
 // global variables used for rendering
 // -----------------------------------
@@ -63,7 +64,7 @@ unsigned int testVAO;
 
 Shader* objectShaderProgram;
 Shader* testShader;
-Shader* toBufferShader;
+Shader* waterShader;
 
 // global variables used for control
 // ---------------------------------
@@ -75,7 +76,7 @@ Plane waterBase;
 Plane waterUpperBound;
 Plane waterLowerBound;
 
-float counter = 0;
+float hmLayer = 0;
 bool counterDir = true;
 bool shouldBreak = false;
 int gridSize = 100;
@@ -106,10 +107,13 @@ int main()
     glBindVertexArray(VAO);
     unsigned int VBO;
     glGenBuffers(1, &VBO);*/
-    generateHeightMapTexture();
+    std::vector<float>* hm = generateHeightMapTexture();
     Shader* fromBuffer = new Shader("shaders/FromBuffer.vert", "shaders/object.frag");
     Shader* HeightMapProgram = new Shader("shaders/HeightMap.vert", "shaders/HeightMap.frag");
-    Shader * WaterTest = new Shader("shaders/WaterTest.vert", "shaders/WaterTest.frag");
+    waterShader = new Shader("shaders/WaterTest.vert", "shaders/WaterTest.frag");
+    waterShader->use();
+    waterShader->setInt("heightMap", 0);
+    waterShader->setInt("normalMap", 1);
     // render loop
     // -----------
     // render every loopInterval seconds
@@ -134,22 +138,24 @@ int main()
         // notice that we also need to clear the depth buffer (aka z-buffer) every new frame
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        WaterTest->setFloat("heightMapLayer", counter);
-        counter += counterDir ? 0.01f : -0.01f;
-        if (counter >= 0.9 && counterDir)
+        glm::mat4 viewProjection = getViewProjectionMatrix();
+        drawObjects(viewProjection);
+
+        glUseProgram(waterShader->ID);
+
+        waterShader->setFloat("heightMapLayer", hmLayer);
+        hmLayer += counterDir ? 0.5f : -0.5f;
+        if (hmLayer >= 99 && counterDir)
         {
             counterDir = false;
         }
-        if (counter <= 0.1 && !counterDir)
+        if (hmLayer <= 0 && !counterDir)
         {
             counterDir = true;
         }
 
-        glm::mat4 viewProjection = getViewProjectionMatrix();
-        drawObjects(viewProjection);
-        glUseProgram(WaterTest->ID);
         changeProjector();
-        WaterTest->setMat4("viewProj", viewProjection);
+        waterShader->setMat4("viewProj", viewProjection);
         glm::mat4 pView = getPViewMatrix();
         rangeMat = getRangeConversionMatrix(viewProjection, pView);
         if (rangeMat != glm::mat4(1))
@@ -157,10 +163,10 @@ int main()
             invPView = glm::inverse(pView);
 
             glm::mat4 finalMatrix = invPView * rangeMat;
-            unsigned int VAO = getGrid(finalMatrix);
+            unsigned int VAO = getGrid(finalMatrix, hm);
             glBindVertexArray(VAO);
-            //glDrawElements(GL_TRIANGLES, 57000, GL_UNSIGNED_INT, 0); //TODO calculate 57000
-            glDrawArrays(GL_POINTS, 0, gridSize*gridSize);
+            glDrawElements(GL_TRIANGLES, 57000, GL_UNSIGNED_INT, 0); //TODO calculate 57000
+            //glDrawArrays(GL_POINTS, 0, gridSize*gridSize);
         }
         //drawObjects(viewProjection, VBO, VAO);
 
@@ -216,6 +222,7 @@ std::vector<float>* generateHeightMapTexture()
 
     unsigned int heightMapTex;
     glGenTextures(1, &heightMapTex);
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_3D, heightMapTex);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -224,14 +231,12 @@ std::vector<float>* generateHeightMapTexture()
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, gridSize, gridSize, gridSize, 0, GL_RED, GL_FLOAT, &((*heightMap)[0]));
-    std::cout << "Yeah" << std::endl;
     return heightMap;
 }
 
 void setupTest()
 {
     std::cout << "Hello World Larl" << std::endl;
-    toBufferShader = new Shader("shaders/ToBuffer.vert");
     testShader = new Shader("shaders/test.vert", "shaders/object.frag");
     std::vector<float> vertices = 
     { 
@@ -272,18 +277,20 @@ glm::vec3 tranformCornerOfGrid(glm::vec2 corner, glm::mat4 rangePViewMatrix)
     }
 }
 
-glm::vec3 index2D(int i, int j, std::vector<glm::vec3>* grid, int gridSize)
+template<typename T>
+glm::vec3 index2D(int i, int j, std::vector<T>* grid, int gridSize)
 {
     return (*grid)[i * gridSize + j];
 }
 
-void index2D(int i, int j, glm::vec3 v, std::vector<glm::vec3>* grid, int gridSize)
+template<typename T>
+void index2D(int i, int j, T v, std::vector<T>* grid, int gridSize)
 {
     int index = i * gridSize + j;
     (*grid)[index] = v;
 }
 
-unsigned int getGrid(glm::mat4 rangePViewMatrix)
+unsigned int getGrid(glm::mat4 rangePViewMatrix, std::vector<float>* hm)
 {
     std::vector<glm::vec3>* grid = new std::vector<glm::vec3>(gridSize*gridSize);
     float stepSize = 1.0f / (float)gridSize;
@@ -308,14 +315,41 @@ unsigned int getGrid(glm::mat4 rangePViewMatrix)
         index2D(gridSize - 1, j, rv, grid, gridSize);
     }
 
-    for (int j = 0; j < gridSize; j++)
+    for (int i = 1; i < gridSize-1; i++)
     {
-        for (int i = 1; i < gridSize - 1; i++)
+        for (int j = 0; j < gridSize; j++)
         {
             glm::vec3 lv = index2D(0, j, grid, gridSize);
             glm::vec3 rv = index2D(gridSize-1, j, grid, gridSize);
             glm::vec3 v = glm::mix(lv, rv, stepSize * i);
             index2D(i, j, v, grid, gridSize);
+        }
+    }
+
+    int layer = glm::round(hmLayer);
+    for (int i = 0; i < gridSize; i++)
+    {
+        for (int j = 0; j < gridSize; j++)
+        {
+            glm::vec3 vert = index2D(i, j, grid, gridSize);
+            float height = (*hm)[i * gridSize * gridSize + j * gridSize + layer];
+            float y = (waterUpperBound.point.y - waterLowerBound.point.y) * height + waterLowerBound.point.y;
+            vert = { vert.x, y, vert.z };
+            index2D(i, j, vert, grid, gridSize);
+        }
+    }
+
+    generateNormalMap(grid);
+
+    std::vector<float>* texCoords = new std::vector<float>(gridSize * gridSize * 2);
+    for (int i = 0; i < gridSize; i++)
+    {
+        float u = (float)i / (float)((gridSize - 1));
+        for (int j = 0; j < gridSize; j++)
+        {
+            float v = (float)j / (float)((gridSize - 1));
+            (*texCoords)[(i * gridSize + j) * 2 + 0] = u;
+            (*texCoords)[(i * gridSize + j) * 2 + 1] = v;
         }
     }
 
@@ -343,20 +377,67 @@ unsigned int getGrid(glm::mat4 rangePViewMatrix)
             //Left triangle
             indices->push_back(j + i * gridSize);
             indices->push_back((j + 1) + i * gridSize);
-            indices->push_back((j + 1) + (i + 1) * gridSize); //TODO: Test this bullshit!!
+            indices->push_back((j + 1) + (i + 1) * gridSize);
         }
     }
 
-    unsigned int VAO = createVertexArray(*vertices, *indices);
+    unsigned int VAO = createVertexArray(*vertices, *texCoords, "texCoord", 2, *indices, waterShader);
+    //unsigned int VAO = createVertexArray(*vertices, *indices);
 
-    delete vertices, indices;
+    delete vertices, indices, hm, texCoords;
 
     return VAO;
 }
 
+void generateNormalMap(std::vector<glm::vec3>* grid)
+{
+    std::vector<float>* normalMap = new std::vector<float>();
+    for (int i = 0; i < gridSize; i++)
+    {
+        for (int j = 0; j < gridSize; j++)
+        {
+            glm::vec3 h(1.0f, 0.0f, 0.0f);
+            glm::vec3 v(0.0f, 0.0f, 1.0f);
+            glm::vec3 vert = index2D(i, j, grid, gridSize);
+            if (i + 1 < gridSize && i - 1 > 0)
+            {
+                glm::vec3 r = index2D(i + 1, j, grid, gridSize);
+                glm::vec3 l = index2D(i - 1, j, grid, gridSize);
+                h = r - l;
+            }
+            if (j + 1 < gridSize && j - 1 > 0)
+            {
+                glm::vec3 u = index2D(i, j + 1, grid, gridSize);
+                glm::vec3 d = index2D(i, j - 1, grid, gridSize);
+                v = u - d;
+            }
+
+            glm::vec3 normal = glm::normalize(glm::abs((glm::cross(v, h))));
+            
+            normalMap->push_back(normal.x);
+            normalMap->push_back(normal.y);
+            normalMap->push_back(normal.z);
+
+        }
+    }
+
+    unsigned int normalMapTex;
+    glGenTextures(1, &normalMapTex);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, normalMapTex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, gridSize, gridSize, 0, GL_RGB, GL_FLOAT, &((*normalMap)[0]));
+
+    delete normalMap;
+}
+
 void drawTest(unsigned int VBO, unsigned int VAO)
 {
-    glUseProgram(toBufferShader->ID);
     glBindVertexArray(VAO);
     glBindBufferRange(GL_TRANSFORM_FEEDBACK_BUFFER, 0, VBO, 0, 9 * sizeof(GLfloat));
     glBeginTransformFeedback(GL_TRIANGLES);
@@ -410,7 +491,7 @@ bool changeProjector()
     //std::cout << "Angle: " << angle << "Mix: " << mixVal << std::endl;
     projLookAtPoint = glm::mix(method1Point, method2Point, mixVal);
     //std::cout << "m1: " << method1Point.y << ", m2: " << method2Point.y << std::endl;
-    std::cout << projLookAtPoint << std::endl;
+    //std::cout << projLookAtPoint << std::endl;
     return true;
 }
 
@@ -647,21 +728,21 @@ void setupObjects() {
     objectShaderProgram = new Shader("shaders/object.vert", "shaders/object.frag");
 
     // load floor mesh into openGL
-    floorObj.VAO = createVertexArray(floorVertices, floorColors, floorIndices, objectShaderProgram);
+    floorObj.VAO = createVertexArray(floorVertices, floorColors, "color", 4, floorIndices, objectShaderProgram);
     floorObj.vertexCount = floorIndices.size();
 
     // load cube mesh into openGL
-    cube.VAO = createVertexArray(cubeVertices, cubeColors, cubeIndices, objectShaderProgram);
+    cube.VAO = createVertexArray(cubeVertices, cubeColors, "color", 4, cubeIndices, objectShaderProgram);
     cube.vertexCount = cubeIndices.size();
 
     // load plane meshes into openGL
-    planeBody.VAO = createVertexArray(planeBodyVertices, planeBodyColors, planeBodyIndices, objectShaderProgram);
+    planeBody.VAO = createVertexArray(planeBodyVertices, planeBodyColors, "color", 4, planeBodyIndices, objectShaderProgram);
     planeBody.vertexCount = planeBodyIndices.size();
 
-    planeWing.VAO = createVertexArray(planeWingVertices, planeWingColors, planeWingIndices, objectShaderProgram);
+    planeWing.VAO = createVertexArray(planeWingVertices, planeWingColors, "color", 4, planeWingIndices, objectShaderProgram);
     planeWing.vertexCount = planeWingIndices.size();
 
-    planePropeller.VAO = createVertexArray(planePropellerVertices, planePropellerColors, planePropellerIndices, objectShaderProgram);
+    planePropeller.VAO = createVertexArray(planePropellerVertices, planePropellerColors, "color", 4, planePropellerIndices, objectShaderProgram);
     planePropeller.vertexCount = planePropellerIndices.size();
 }
 

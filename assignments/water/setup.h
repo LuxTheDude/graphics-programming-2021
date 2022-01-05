@@ -6,7 +6,7 @@
 //OpenGL helpers
 unsigned int createArrayBuffer(const std::vector<float>& array);
 unsigned int createElementArrayBuffer(const std::vector<unsigned int>& array);
-unsigned int createVertexArray(const std::vector<float>& positions, const std::vector<float>& colors, const std::vector<unsigned int>& indices, Shader* shaderProgram);
+unsigned int createVertexArray(const std::vector<float>& positions, const std::vector<float>& other, std::string otherName, int otherSize, const std::vector<unsigned int>& indices, Shader* shaderProgram);
 unsigned int createVertexArray(const std::vector<float>& positions);
 unsigned int createVertexArray(const std::vector<float>& positions, const std::vector<unsigned int>& indices);
 
@@ -119,7 +119,7 @@ unsigned int createVertexArray(const std::vector<float>& positions, const std::v
 }
 
 
-unsigned int createVertexArray(const std::vector<float>& positions, const std::vector<float>& colors, const std::vector<unsigned int>& indices, Shader* shaderProgram) {
+unsigned int createVertexArray(const std::vector<float>& positions, const std::vector<float>& other, std::string otherName, int otherSize, const std::vector<unsigned int>& indices, Shader* shaderProgram) {
     unsigned int VAO;
     glGenVertexArrays(1, &VAO);
     // bind vertex array object
@@ -132,10 +132,10 @@ unsigned int createVertexArray(const std::vector<float>& positions, const std::v
     glVertexAttribPointer(posAttributeLocation, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
     // set vertex shader attribute "color"
-    createArrayBuffer(colors); // creates and bind the VBO
-    int colorAttributeLocation = glGetAttribLocation(shaderProgram->ID, "color");
+    createArrayBuffer(other); // creates and bind the VBO
+    int colorAttributeLocation = glGetAttribLocation(shaderProgram->ID, otherName.c_str());
     glEnableVertexAttribArray(colorAttributeLocation);
-    glVertexAttribPointer(colorAttributeLocation, 4, GL_FLOAT, GL_FALSE, 0, 0);
+    glVertexAttribPointer(colorAttributeLocation, otherSize, GL_FLOAT, GL_FALSE, 0, 0);
 
     // creates and bind the EBO
     createElementArrayBuffer(indices);
