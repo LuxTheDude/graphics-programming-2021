@@ -3,6 +3,8 @@
 #include <iostream>
 #include <setup.h>
 #include <limits>
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
 
 #include <vector>
 #include <chrono>
@@ -52,6 +54,9 @@ void setupWater();
 glm::vec3 projectPointOntoPlane(glm::vec3 p, Plane plane);
 unsigned int getGrid(glm::mat4 rangePViewMatrix, std::vector<float>*);
 void generateNormalMap(std::vector<glm::vec3>* grid);
+unsigned int testTheThing(glm::mat4 rangePViewMatrix);
+glm::mat4 getViewProjectionMatrixNoTranslation();
+unsigned int makeSkyBox();
 
 // global variables used for rendering
 // -----------------------------------
@@ -65,6 +70,7 @@ unsigned int testVAO;
 Shader* objectShaderProgram;
 Shader* testShader;
 Shader* waterShader;
+Shader* genHeightMapShader;
 
 // global variables used for control
 // ---------------------------------
@@ -79,7 +85,9 @@ Plane waterLowerBound;
 float hmLayer = 0;
 bool counterDir = true;
 bool shouldBreak = false;
-int gridSize = 100;
+int gridSize = 200;
+int elementsToDraw = 0;
+unsigned int skyTex;
 
 
 glm::mat4 rangeMat;
@@ -97,23 +105,19 @@ int main()
         return -1;
     configureOpenGL();
 
-    // setup mesh objects and particles
-    // ---------------------------------------
-    //setupObjects();
-    /*setupTest();
-    unsigned int VAO;
-    glGenVertexArrays(1, &VAO);
-    // bind vertex array object
-    glBindVertexArray(VAO);
-    unsigned int VBO;
-    glGenBuffers(1, &VBO);*/
     std::vector<float>* hm = generateHeightMapTexture();
-    Shader* fromBuffer = new Shader("shaders/FromBuffer.vert", "shaders/object.frag");
+    Shader* skyboxShader = new Shader("shaders/Skybox.vert", "shaders/Skybox.frag");
+    skyboxShader->use();
+    skyboxShader->setInt("skybox", 2);
     Shader* HeightMapProgram = new Shader("shaders/HeightMap.vert", "shaders/HeightMap.frag");
     waterShader = new Shader("shaders/WaterTest.vert", "shaders/WaterTest.frag");
     waterShader->use();
     waterShader->setInt("heightMap", 0);
     waterShader->setInt("normalMap", 1);
+    /*genHeightMapShader = new Shader("shaders/GenerateHeightMap.vert", "shaders/GenerateHeightMap.frag");
+    genHeightMapShader->use();
+    genHeightMapShader->setInt("heightMap", 0);
+    genHeightMapShader->setVec2("screenSize", 600, 600);*/
     // render loop
     // -----------
     // render every loopInterval seconds
@@ -121,7 +125,7 @@ int main()
     auto begin = std::chrono::high_resolution_clock::now();
     setupWater();
     setupObjects();
-    //setupTest();
+    unsigned int skyboxVAO = makeSkyBox();
     while (!glfwWindowShouldClose(window))
     {
         // update current time
@@ -130,8 +134,6 @@ int main()
         currentTime = appTime.count();
 
         processInput(window);
-        //if (!changeProjector())
-        //    continue;
 
         glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
 
@@ -139,21 +141,23 @@ int main()
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glm::mat4 viewProjection = getViewProjectionMatrix();
+        glm::mat4 viewProjectionNoTranslation = getViewProjectionMatrixNoTranslation();
+
         drawObjects(viewProjection);
 
         glUseProgram(waterShader->ID);
-
+        //genHeightMapShader->use();
+        //genHeightMapShader->setFloat("heightMapLayer", hmLayer);
         waterShader->setFloat("heightMapLayer", hmLayer);
-        hmLayer += counterDir ? 0.5f : -0.5f;
-        if (hmLayer >= 99 && counterDir)
+        hmLayer += counterDir ? 0.01f : -0.01f;
+        if (hmLayer >= 0.99f && counterDir)
         {
             counterDir = false;
         }
-        if (hmLayer <= 0 && !counterDir)
+        if (hmLayer <= 0.01f && !counterDir)
         {
             counterDir = true;
         }
-
         changeProjector();
         waterShader->setMat4("viewProj", viewProjection);
         glm::mat4 pView = getPViewMatrix();
@@ -164,10 +168,20 @@ int main()
 
             glm::mat4 finalMatrix = invPView * rangeMat;
             unsigned int VAO = getGrid(finalMatrix, hm);
+
+            //unsigned int VAO = testTheThing(finalMatrix);
             glBindVertexArray(VAO);
-            glDrawElements(GL_TRIANGLES, 57000, GL_UNSIGNED_INT, 0); //TODO calculate 57000
+            glDrawElements(GL_TRIANGLES, elementsToDraw, GL_UNSIGNED_INT, 0);
             //glDrawArrays(GL_POINTS, 0, gridSize*gridSize);
+            //glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         }
+
+        glUseProgram(skyboxShader->ID);
+        skyboxShader->setMat4("viewProj", viewProjectionNoTranslation);
+        glBindVertexArray(skyboxVAO);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, skyTex);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+
         //drawObjects(viewProjection, VBO, VAO);
 
         /*glBindVertexArray(testVAO);
@@ -237,7 +251,7 @@ std::vector<float>* generateHeightMapTexture()
 void setupTest()
 {
     std::cout << "Hello World Larl" << std::endl;
-    testShader = new Shader("shaders/test.vert", "shaders/object.frag");
+    //testShader = new Shader("shaders/test.vert", "shaders/object.frag");
     std::vector<float> vertices = 
     { 
         -1, 1, 0,
@@ -331,8 +345,11 @@ unsigned int getGrid(glm::mat4 rangePViewMatrix, std::vector<float>* hm)
     {
         for (int j = 0; j < gridSize; j++)
         {
+            
             glm::vec3 vert = index2D(i, j, grid, gridSize);
-            float height = (*hm)[i * gridSize * gridSize + j * gridSize + layer];
+            int x = (((int) glm::round(vert.x) % 100) + 100) % 100;
+            int z = (((int) glm::round(vert.z) % 100) + 100) % 100;
+            float height = (*hm)[(x * gridSize * gridSize + z * gridSize + layer) % hm->size()];
             float y = (waterUpperBound.point.y - waterLowerBound.point.y) * height + waterLowerBound.point.y;
             vert = { vert.x, y, vert.z };
             index2D(i, j, vert, grid, gridSize);
@@ -381,6 +398,8 @@ unsigned int getGrid(glm::mat4 rangePViewMatrix, std::vector<float>* hm)
         }
     }
 
+    elementsToDraw = indices->size();
+
     unsigned int VAO = createVertexArray(*vertices, *texCoords, "texCoord", 2, *indices, waterShader);
     //unsigned int VAO = createVertexArray(*vertices, *indices);
 
@@ -398,7 +417,6 @@ void generateNormalMap(std::vector<glm::vec3>* grid)
         {
             glm::vec3 h(1.0f, 0.0f, 0.0f);
             glm::vec3 v(0.0f, 0.0f, 1.0f);
-            glm::vec3 vert = index2D(i, j, grid, gridSize);
             if (i + 1 < gridSize && i - 1 > 0)
             {
                 glm::vec3 r = index2D(i + 1, j, grid, gridSize);
@@ -412,7 +430,7 @@ void generateNormalMap(std::vector<glm::vec3>* grid)
                 v = u - d;
             }
 
-            glm::vec3 normal = glm::normalize(glm::abs((glm::cross(v, h))));
+            glm::vec3 normal = glm::normalize((glm::cross(h, v)));
             
             normalMap->push_back(normal.x);
             normalMap->push_back(normal.y);
@@ -436,21 +454,19 @@ void generateNormalMap(std::vector<glm::vec3>* grid)
     delete normalMap;
 }
 
-void drawTest(unsigned int VBO, unsigned int VAO)
-{
-    glBindVertexArray(VAO);
-    glBindBufferRange(GL_TRANSFORM_FEEDBACK_BUFFER, 0, VBO, 0, 9 * sizeof(GLfloat));
-    glBeginTransformFeedback(GL_TRIANGLES);
-    glBindVertexArray(testVAO);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
-    glEndTransformFeedback();
-}
-
 glm::mat4 getViewProjectionMatrix()
 {
     glm::mat4 projection = glm::perspectiveFov(70.0f, (float)SCR_WIDTH, (float)SCR_HEIGHT, .01f, 100.0f);
     glm::mat4 view = glm::lookAt(camPosition, camPosition + camForward, glm::vec3(0, 1, 0));
     return projection * view;
+}
+
+glm::mat4 getViewProjectionMatrixNoTranslation()
+{
+    glm::mat4 projection = glm::perspectiveFov(70.0f, (float)SCR_WIDTH, (float)SCR_HEIGHT, .01f, 100.0f);
+    glm::mat4 view = glm::lookAt(camPosition, camPosition + camForward, glm::vec3(0, 1, 0));
+    glm::mat4 viewNoTrans = glm::mat4(glm::mat3(view));
+    return projection * viewNoTrans;
 }
 
 glm::mat4 getPViewMatrix()
@@ -777,3 +793,117 @@ void drawObjects(glm::mat4 viewProjection) {
     drawPlane(viewProjection * glm::translate(-2.0f, .5f, 2.0f) * glm::rotateX(glm::quarter_pi<float>()) * scale);
     drawPlane(viewProjection * glm::translate(2.0f, .5f, -2.0f) * glm::rotateX(glm::quarter_pi<float>() * 3.f) * scale);
 }
+
+unsigned int makeSkyBox()
+{
+    
+    //std::vector<std::string> faces = { "right.jpg", "left.jpg", "top.jpg", "bottom.jpg", "front.jpg", "back.jpg" };
+    std::vector<std::string> faces = { "bluecloud_rt.jpg", "bluecloud_lf.jpg", "bluecloud_up.jpg", "bluecloud_dn.jpg", "bluecloud_bk.jpg", "bluecloud_ft.jpg" };
+    unsigned int skybox;
+    glActiveTexture(GL_TEXTURE2);
+    glGenTextures(1, &skybox);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, skybox);
+
+    int width, height, nrChannels;
+    for (unsigned int i = 0; i < faces.size(); i++)
+    {
+        std::string lars = "skybox2/" + faces[i];
+        unsigned char* data = stbi_load(lars.c_str(), &width, &height, &nrChannels, 0);
+        if (data)
+        {
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+                0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data
+            );
+            stbi_image_free(data);
+        }
+        else
+        {
+            std::cout << "Cubemap tex failed to load at path: " << faces[i] << std::endl;
+            stbi_image_free(data);
+        }
+    }
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+    std::vector<float> skyboxVertices = {
+        // positions          
+        -1.0f,  1.0f, -1.0f,
+        -1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,
+         1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f,
+
+        -1.0f, -1.0f,  1.0f,
+        -1.0f, -1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f,  1.0f,
+        -1.0f, -1.0f,  1.0f,
+
+         1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,
+
+        -1.0f, -1.0f,  1.0f,
+        -1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f, -1.0f,  1.0f,
+        -1.0f, -1.0f,  1.0f,
+
+        -1.0f,  1.0f, -1.0f,
+         1.0f,  1.0f, -1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+        -1.0f,  1.0f,  1.0f,
+        -1.0f,  1.0f, -1.0f,
+
+        -1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f,  1.0f,
+         1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f,  1.0f,
+         1.0f, -1.0f,  1.0f
+    };
+
+    skyTex = skybox;
+    return createVertexArray(skyboxVertices);
+}
+
+/*unsigned int testTheThing(glm::mat4 rangePViewMatrix)
+{
+    glm::vec3 ll = tranformCornerOfGrid({ 0, 0 }, rangePViewMatrix); //ll
+    glm::vec3 ul = tranformCornerOfGrid({ 0, 1 }, rangePViewMatrix); //ul
+    glm::vec3 lr = tranformCornerOfGrid({ 1, 0 }, rangePViewMatrix); //lr
+    glm::vec3 ur = tranformCornerOfGrid({ 1, 1 }, rangePViewMatrix); //ur
+
+    std::vector<float> corners = std::vector<float>();
+
+    corners.push_back(ll.x);
+    corners.push_back(ll.z);
+    corners.push_back(ul.x);
+    corners.push_back(ul.z);
+    corners.push_back(lr.x);
+    corners.push_back(lr.z);
+    corners.push_back(ur.x);
+    corners.push_back(ur.z);
+
+    std::vector<unsigned int> indices = { 0, 3, 1, 3, 2, 0 };
+
+    std::vector<float> uvs = {-1, -1,
+                              -1,  1,
+                               1, -1,
+                               1,  1,
+    };
+
+    unsigned int VAO = createVertexArray(corners, uvs, "uv", 2, indices, genHeightMapShader);
+
+    return VAO;
+}*/

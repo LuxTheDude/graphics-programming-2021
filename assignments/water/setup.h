@@ -9,6 +9,7 @@ unsigned int createElementArrayBuffer(const std::vector<unsigned int>& array);
 unsigned int createVertexArray(const std::vector<float>& positions, const std::vector<float>& other, std::string otherName, int otherSize, const std::vector<unsigned int>& indices, Shader* shaderProgram);
 unsigned int createVertexArray(const std::vector<float>& positions);
 unsigned int createVertexArray(const std::vector<float>& positions, const std::vector<unsigned int>& indices);
+unsigned int createVertexArray(const std::vector<float>& positions, const std::vector<float>& other, std::string otherName, int otherSize, Shader* shaderProgram);
 
 //GLFW and input functions
 void cursorInRange(float screenX, float screenY, int screenW, int screenH, float min, float max, float& x, float& y);
@@ -84,7 +85,7 @@ void configureOpenGL()
     // so let's conform to that
     glDepthRange(-1, 1); // make the NDC a LEFT handed coordinate system, with the camera pointing towards +z
     glEnable(GL_DEPTH_TEST); // turn on z-buffer depth test
-    glDepthFunc(GL_LESS); // draws fragments that are closer to the screen in NDC
+    glDepthFunc(GL_LEQUAL); // draws fragments that are closer to the screen in NDC
     glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
     glBlendFunc(GL_SRC_ALPHA, GL_DST_ALPHA);
 }
@@ -139,6 +140,27 @@ unsigned int createVertexArray(const std::vector<float>& positions, const std::v
 
     // creates and bind the EBO
     createElementArrayBuffer(indices);
+
+    return VAO;
+}
+
+unsigned int createVertexArray(const std::vector<float>& positions, const std::vector<float>& other, std::string otherName, int otherSize, Shader* shaderProgram) {
+    unsigned int VAO;
+    glGenVertexArrays(1, &VAO);
+    // bind vertex array object
+    glBindVertexArray(VAO);
+
+    // set vertex shader attribute "pos"
+    createArrayBuffer(positions); // creates and bind  the VBO
+    int posAttributeLocation = glGetAttribLocation(shaderProgram->ID, "pos");
+    glEnableVertexAttribArray(posAttributeLocation);
+    glVertexAttribPointer(posAttributeLocation, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+    // set vertex shader attribute "color"
+    createArrayBuffer(other); // creates and bind the VBO
+    int colorAttributeLocation = glGetAttribLocation(shaderProgram->ID, otherName.c_str());
+    glEnableVertexAttribArray(colorAttributeLocation);
+    glVertexAttribPointer(colorAttributeLocation, otherSize, GL_FLOAT, GL_FALSE, 0, 0);
 
     return VAO;
 }
